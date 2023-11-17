@@ -62,7 +62,8 @@ process bedtools_coverage {
 
     script:
     """
-    bedtools coverage -a $probe_bed -b $intersected_bam > ${library_id}_intersected_coverage.bed
+    cut -f1-3 $probe_bed >> only_required_columns.bed
+    bedtools coverage -d -a only_required_columns.bed -b $intersected_bam > ${library_id}_intersected_coverage.bed
     """
 }
 
@@ -95,7 +96,7 @@ process generate_gc_content_summary {
 
     script:
     """
-    bash $calculate_gc_content_script $input_extracted_sequences extracted_sequences_GC_content.txt
+    $calculate_gc_content_script $input_extracted_sequences extracted_sequences_GC_content.txt
     """
 }
 
