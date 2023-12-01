@@ -49,6 +49,7 @@ read_gc_content_file <- function(file_path) {
 }
 
 read_bed_file <- function(file_path) {
+ message("in read bed file")
  # Replace 'your_file.bed' with the path to your BED file
  bed_data <- suppressMessages(
   read_tsv(file_path, col_names = FALSE)
@@ -63,7 +64,7 @@ read_bed_file <- function(file_path) {
 
  # Ensuring the first three columns are named correctly
  colnames(bed_data)[1:3] <- c("chromosome", "probe_start_pos", "probe_end_pos")
-
+ message("leaving read bed file")
  # Convert to tibble
  return(bed_data)
 }

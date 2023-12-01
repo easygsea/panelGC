@@ -34,4 +34,4 @@ BIAS.COLORS <- c("GC biased" = "blue",
                  "AT biased" = "red",
                  "GC bias warning" = "cornflowerblue",
                  "AT bias warning" = "coral",
-                 "No bias" = "darkgrey")
+                 "no bias" = "darkgrey")

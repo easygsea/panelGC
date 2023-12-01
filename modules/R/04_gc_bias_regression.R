@@ -19,7 +19,6 @@ get_gc_bias_regression_table <- function(
   distinct() %>%
   group_by(library) %>%
   summarise(mean_depth = mean(depth))
- print(mean_library_depths)
 
  # Compute the median depth of each probe per library.
  gc_summary <- raw_bam_readcount_intersected_probes %>%
@@ -28,7 +27,6 @@ get_gc_bias_regression_table <- function(
              multiple = "all") %>%
   group_by(probe_name, GC, library) %>%
   summarise(depth_median = median(depth))
- print(gc_summary)
 
  # Compute the median depth across probes within a GC percentile bin.
  bin_gc_summary <- gc_summary %>%
@@ -36,15 +34,12 @@ get_gc_bias_regression_table <- function(
   mutate(gc_bin = floor(GC * 100) / 100) %>%
   group_by(library, gc_bin) %>%
   summarise(depth_median_median = median(depth_median))
- print(bin_gc_summary)
 
  # Normalization by mean library depth.
  bin_gc_summary <- left_join(
   bin_gc_summary, mean_library_depths, by = "library") %>%
   mutate(normalized_depth = log2(
    depth_median_median / mean_depth + 1))
- print(bin_gc_summary)
 
  gc_bias_regression <- calculate_gc_bias_regression(bin_gc_summary)
- print(gc_bias_regression)
 }
