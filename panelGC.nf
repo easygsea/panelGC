@@ -143,8 +143,8 @@ process generate_gc_bias {
 
     script:
     """
-    source /projects/clingenetics/mgoktas_dev/ccgi_standalone_utilities/R_utilities/R_profile.sh 
-    panelGC_main.R --probe_bed_file $probe_bed --bam_coverage_directory $intersected_coverage_dir --reference_gc_content_file $gc_content_summary --outdir $out_dir
+    panelGC_main.R --probe_bed_file $probe_bed --bam_coverage_directory $intersected_coverage_dir \
+    --reference_gc_content_file $gc_content_summary --outdir $out_dir
     """
 }
 

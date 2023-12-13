@@ -1,5 +1,3 @@
-#! /usr/bin/env Rscript
-
 source("01_load_libraries_and_constants.R")
 source("02_load_data.R")
 source("03_data_manipulators.R")
@@ -8,10 +6,10 @@ source("05_gc_bias_classification.R")
 source("06_gc_bias_plot.R")
 
 main <- function(
-  probe_bed_file,
-  bam_coverage_directory,
-  reference_gc_content_file,
-  outdir) {
+    probe_bed_file,
+    bam_coverage_directory,
+    reference_gc_content_file,
+    outdir) {
   message("In main function")
   # Set variable names.
   relative_bias_name <- str_glue("bias_{GC.LOWER.ANCHOR}vs{GC.UPPER.ANCHOR}")

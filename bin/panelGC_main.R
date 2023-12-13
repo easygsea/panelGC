@@ -1,9 +1,7 @@
 #! /usr/bin/env Rscript
+
 # Before executing the program, please run the following command to configure
 # the appropriate R environment:
-
-libpath <- "/projects/clingenetics/software/tools/R/R-3.6.1/library"
-.libPaths(libpath)
 
 message("Compute and classify GC biases. Loading packages and functions ...")
 
@@ -30,130 +28,153 @@ PANEL.GC.BIAS.PASS.RATIO.CUTOFF <- 0.7
 # Minimum number of fresh libraries required for gating.
 N.LIBRARY.CUTOFF <- 5
 
-BIAS.COLORS <- c("GC biased" = "blue",
-                 "AT biased" = "red",
-                 "GC bias warning" = "cornflowerblue",
-                 "AT bias warning" = "coral",
-                 "no bias" = "darkgrey")
-read_coverage_files_and_create_tibbles <- function(directory_path, file_pattern) {
- # List all files in the directory that match the given pattern
- file_paths <- list.files(path = directory_path, pattern = file_pattern, full.names = TRUE)
+BIAS.COLORS <- c(
+  "GC biased" = "blue",
+  "AT biased" = "red",
+  "GC bias warning" = "cornflowerblue",
+  "AT bias warning" = "coral",
+  "no bias" = "darkgrey"
+)
+read_coverage_files_and_create_tibbles <- function(
+    directory_path,
+    file_pattern) {
+  # List all files in the directory that match the given pattern
+  file_paths <- list.files(
+    path = directory_path,
+    pattern = file_pattern,
+    full.names = TRUE
+  )
 
- # Initialize an empty list to store tibbles
- tibbles_list <- list()
+  # Initialize an empty list to store tibbles
+  tibbles_list <- list()
 
- # Read each file, create a tibble, and assign it a name based on the file name
- for (file_path in file_paths) {
-  # Extract the base name of the file (without path and extension)
-  file_name <- tools::file_path_sans_ext(basename(file_path))
+  # Read each file, create a tibble, and assign it a name based on the file name
+  for (file_path in file_paths) {
+    # Extract the base name of the file (without path and extension)
+    file_name <- tools::file_path_sans_ext(basename(file_path))
 
-  # Read the file into a tibble
-  tibble_data <- read_tsv(file_path, col_names = c("chromosome", "probe_start_pos", "probe_end_pos", "offset", "depth"),
-                          col_types = cols(
-                          chromosome = col_character(),
-                           probe_start_pos = col_double(),
-                           probe_end_pos = col_double(),
-                           offset = col_double(),
-                           depth = col_double()
-                          ))
+    # Read the file into a tibble
+    tibble_data <- read_tsv(file_path,
+      col_names = c(
+        "chromosome",
+        "probe_start_pos",
+        "probe_end_pos",
+        "offset",
+        "depth"
+      ),
+      col_types = cols(
+        chromosome = col_character(),
+        probe_start_pos = col_double(),
+        probe_end_pos = col_double(),
+        offset = col_double(),
+        depth = col_double()
+      )
+    )
 
-  # Assign the tibble to the list with the name as the key
-  tibbles_list[[file_name]] <- tibble_data
- }
+    # Assign the tibble to the list with the name as the key
+    tibbles_list[[file_name]] <- tibble_data
+  }
 
- return(tibbles_list)
+  return(tibbles_list)
 }
 
 read_gc_content_file <- function(file_path) {
- # Read the TSV file
- data <- read_tsv(
-                  file_path,
-                  col_types = cols(
-                   region = col_character(),
-                   GC = col_double()
- ))
-
- # Process the data
- manipulated_data <- data %>%
-  separate(region, into = c("chromosome", "positions"), sep = "[:]") %>%
-  separate(positions, into = c("start_pos", "end_pos"), sep = "-") %>%
-  mutate(
-   start_pos = as.integer(start_pos),
-   end_pos = as.integer(end_pos)
+  # Read the TSV file
+  data <- read_tsv(
+    file_path,
+    col_types = cols(
+      region = col_character(),
+      GC = col_double()
+    )
   )
 
- return(manipulated_data)
+  # Process the data
+  manipulated_data <- data %>%
+    separate(region, into = c("chromosome", "positions"), sep = "[:]") %>%
+    separate(positions, into = c("start_pos", "end_pos"), sep = "-") %>%
+    mutate(
+      start_pos = as.integer(start_pos),
+      end_pos = as.integer(end_pos)
+    )
+
+  return(manipulated_data)
 }
 
 read_bed_file <- function(file_path) {
- message("in read bed file")
- # Replace 'your_file.bed' with the path to your BED file
- bed_data <- suppressMessages(
-  read_tsv(file_path, col_names = FALSE)
- )
+  message("in read bed file")
+  # Replace 'your_file.bed' with the path to your BED file
+  bed_data <- suppressMessages(
+    read_tsv(file_path, col_names = FALSE)
+  )
 
- # Check the number of columns and process accordingly
- if (ncol(bed_data) >= 4) {
-  colnames(bed_data)[4] <- "probe_name"
- } else {
-  bed_data$probe_name <- seq(1000, 1000 + nrow(bed_data) - 1)
- }
+  # Check the number of columns and process accordingly
+  if (ncol(bed_data) >= 4) {
+    colnames(bed_data)[4] <- "probe_name"
+  } else {
+    bed_data$probe_name <- seq(1000, 1000 + nrow(bed_data) - 1)
+  }
 
- # Ensuring the first three columns are named correctly
- colnames(bed_data)[1:3] <- c("chromosome", "probe_start_pos", "probe_end_pos")
- message("leaving read bed file")
- # Convert to tibble
- return(bed_data)
+  # Ensuring the first three columns are named correctly
+  colnames(bed_data)[1:3] <- c("chromosome", "probe_start_pos", "probe_end_pos")
+  message("leaving read bed file")
+  # Convert to tibble
+  return(bed_data)
 }
 add_offset_to_start_position_and_drop_columns <- function(tibble) {
   tibble %>%
-   mutate(position = probe_start_pos + offset - 1) %>%  # Add offset to start position. Subtract one as offset starts with 1.
-   select(library, probe_name, chromosome, position, depth, )  # Select the required columns
+    # Add offset to start position. Subtract one as offset starts with 1.
+    mutate(position = probe_start_pos + offset - 1) %>%
+    # Select the required columns
+    select(library, probe_name, chromosome, position, depth, )
 }
-calculate_gc_bias_regression <- function(bin_gc_summary){
- gc_bias_regression <- bin_gc_summary %>%
-  group_by(library) %>%
-  arrange(library, gc_bin) %>%
-  nest() %>%
-  mutate(Loess = purrr::map(data, function(x)
-   stats::loess(normalized_depth ~ gc_bin, span = 0.75, data = x) %>%
-    stats::predict(gc_bin = unique(gc_bin)))) %>%
-  unnest(cols = c(data, Loess))
- return(gc_bias_regression)
+calculate_gc_bias_regression <- function(bin_gc_summary) {
+  gc_bias_regression <- bin_gc_summary %>%
+    group_by(library) %>%
+    arrange(library, gc_bin) %>%
+    nest() %>%
+    mutate(Loess = purrr::map(data, function(x) {
+      stats::loess(normalized_depth ~ gc_bin, span = 0.75, data = x) %>%
+        stats::predict(gc_bin = unique(gc_bin))
+    })) %>%
+    unnest(cols = c(data, Loess))
+  return(gc_bias_regression)
 }
 
 get_gc_bias_regression_table <- function(
- raw_bam_readcount_intersected_probes,
- gc_content
-){
- mean_library_depths <- raw_bam_readcount_intersected_probes %>%
-  select(library, chromosome, position, depth) %>%
-  distinct() %>%
-  group_by(library) %>%
-  summarise(mean_depth = mean(depth))
+    raw_bam_readcount_intersected_probes,
+    gc_content) {
+  mean_library_depths <- raw_bam_readcount_intersected_probes %>%
+    select(library, chromosome, position, depth) %>%
+    distinct() %>%
+    group_by(library) %>%
+    summarise(mean_depth = mean(depth))
 
- # Compute the median depth of each probe per library.
- gc_summary <- raw_bam_readcount_intersected_probes %>%
-  inner_join(gc_content,
-             by = c("probe_name" = "probe_name"), ##TODO: remove 'by'
-             multiple = "all") %>%
-  group_by(probe_name, GC, library) %>%
-  summarise(depth_median = median(depth))
+  # Compute the median depth of each probe per library.
+  gc_summary <- raw_bam_readcount_intersected_probes %>%
+    inner_join(gc_content,
+      by = c("probe_name" = "probe_name"), ## TODO: remove 'by'
+      multiple = "all"
+    ) %>%
+    group_by(probe_name, GC, library) %>%
+    summarise(depth_median = median(depth))
 
- # Compute the median depth across probes within a GC percentile bin.
- bin_gc_summary <- gc_summary %>%
-  group_by(library) %>%
-  mutate(gc_bin = floor(GC * 100) / 100) %>%
-  group_by(library, gc_bin) %>%
-  summarise(depth_median_median = median(depth_median))
+  # Compute the median depth across probes within a GC percentile bin.
+  bin_gc_summary <- gc_summary %>%
+    group_by(library) %>%
+    mutate(gc_bin = floor(GC * 100) / 100) %>%
+    group_by(library, gc_bin) %>%
+    summarise(depth_median_median = median(depth_median))
 
- # Normalization by mean library depth.
- bin_gc_summary <- left_join(
-  bin_gc_summary, mean_library_depths, by = "library") %>%
-  mutate(normalized_depth = log2(
-   depth_median_median / mean_depth + 1))
+  # Normalization by mean library depth.
+  bin_gc_summary <- left_join(
+    bin_gc_summary, mean_library_depths,
+    by = "library"
+  ) %>%
+    mutate(normalized_depth = log2(
+      depth_median_median / mean_depth + 1
+    ))
 
- gc_bias_regression <- calculate_gc_bias_regression(bin_gc_summary)
+  gc_bias_regression <- calculate_gc_bias_regression(bin_gc_summary)
 }
 compute_bias_cutoff <- function(fold_change_cutoff, is_upper) {
   bias_factor <- if (is_upper) fold_change_cutoff else 1 / fold_change_cutoff
@@ -173,9 +194,13 @@ get_gc_bias_classification_table <- function(
     relative_bias_cutoff_warning_upper,
     relative_bias_cutoff_warning_lower,
     relative_bias_name, at_bias_name,
+    gc_bias_name) {
+  gc_bias_loess <- calculate_gc_bias_loess(
+    gc_bias_regression,
+    relative_bias_name,
+    at_bias_name,
     gc_bias_name
-) {
-  gc_bias_loess <- calculate_gc_bias_loess(gc_bias_regression, relative_bias_name, at_bias_name, gc_bias_name)
+  )
   gc_bias_classification <- classify_gc_bias(
     gc_bias_loess,
     relative_bias_cutoff_failure_upper, relative_bias_cutoff_failure_lower,
@@ -185,12 +210,15 @@ get_gc_bias_classification_table <- function(
   return(gc_bias_classification)
 }
 
-classify_gc_bias <- function(gc_bias_loess,
-                             relative_bias_cutoff_failure_upper,
-                             relative_bias_cutoff_failure_lower,
-                             relative_bias_cutoff_warning_upper,
-                             relative_bias_cutoff_warning_lower,
-                             relative_bias_name, at_bias_name, gc_bias_name) {
+classify_gc_bias <- function(
+    gc_bias_loess,
+    relative_bias_cutoff_failure_upper,
+    relative_bias_cutoff_failure_lower,
+    relative_bias_cutoff_warning_upper,
+    relative_bias_cutoff_warning_lower,
+    relative_bias_name,
+    at_bias_name,
+    gc_bias_name) {
   gc_bias_classification <- gc_bias_loess %>%
     pivot_longer(
       cols = matches("^bias_.*[0-9]$"),
@@ -215,9 +243,15 @@ classify_gc_bias <- function(gc_bias_loess,
 }
 
 # TODO: think about a name change to justfiy including this function in this module.
-calculate_gc_bias_loess <- function(gc_bias_regression, relative_bias_name, at_bias_name, gc_bias_name) {
+calculate_gc_bias_loess <- function(
+    gc_bias_regression,
+    relative_bias_name,
+    at_bias_name,
+    gc_bias_name) {
   gc_bias_loess <- gc_bias_regression %>%
-    filter(gc_bin == GC.UPPER.ANCHOR / 100 | gc_bin == GC.LOWER.ANCHOR / 100) %>%
+    filter(
+      gc_bin == GC.UPPER.ANCHOR / 100 | gc_bin == GC.LOWER.ANCHOR / 100
+    ) %>%
     select(library, gc_bin, Loess) %>%
     mutate(gc_bin = gc_bin * 100) %>%
     pivot_wider(
@@ -259,12 +293,11 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification) {
   return(p)
 }
 
-
 main <- function(
-  probe_bed_file,
-  bam_coverage_directory,
-  reference_gc_content_file,
-  outdir) {
+    probe_bed_file,
+    bam_coverage_directory,
+    reference_gc_content_file,
+    outdir) {
   message("In main function")
   # Set variable names.
   relative_bias_name <- str_glue("bias_{GC.LOWER.ANCHOR}vs{GC.UPPER.ANCHOR}")
