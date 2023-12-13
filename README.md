@@ -30,6 +30,11 @@ nextflow run panelGC.nf \
 ```
 Replace the paths with your actual data directories and file paths.
 
+## Memory Requirements
+The bedtools_coverage process in panelGC is configured to use a maximum of 4 forks, as it typically requires around ~15GB per fork. It's important to note that users with less than 100GB of memory may need to decrease the number of forks, while those with more than 100GB can consider increasing it for potentially better performance.
+
+To modify the fork settings, adjust the maxForks parameter in the bedtools_coverage process according to your system's memory capacity.
+
 ### Parameters
 - --bam_directory_path: Path to the directory containing BAM files.
 - --bed_file_path: Path to the BED file.
