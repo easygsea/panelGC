@@ -1,9 +1,4 @@
-#!/usr/bin/env Rscript
-
-# Before executing the program, please run the following command to configure
-# the appropriate R environment:
-
-message("Compute and classify GC biases. Loading packages and functions ...")
+message("Loading packages and functions...")
 
 suppressPackageStartupMessages({
   library(argparser)
@@ -18,17 +13,19 @@ suppressPackageStartupMessages({
 options(dplyr.summarise.inform = FALSE)
 
 # Global variables ----
-GC.UPPER.ANCHOR <- 75
-GC.LOWER.ANCHOR <- 25
-RELATIVE.FOLD.CHANGE.FAILURE.CUTOFF <- 2
-RELATIVE.FOLD.CHANGE.WARNING.CUTOFF <- 1.5
-# Exlusive minimum fraction of libraries showing GC bias/ONCOCNV calls that signals a
-# potential issue for a panel.
-PANEL.GC.BIAS.PASS.RATIO.CUTOFF <- 0.7
+GC_UPPER_ANCHOR <- 75
+GC_LOWER_ANCHOR <- 25
+RELATIVE_FOLD_CHANGE_FAILURE_CUTOFF <- 2
+RELATIVE_FOLD_CHANGE_WARNING_CUTOFF <- 1.5
+# Exclusive minimum fraction of libraries showing GC bias/ONCOCNV
+# calls that signals a potential issue for a panel.
+# TODO: This variable is not used
+PANEL_GC_BIAS_PASS_RATIO_CUTOFF <- 0.7
 # Minimum number of fresh libraries required for gating.
-N.LIBRARY.CUTOFF <- 5
+# TODO: This variable is not used
+N_LIBRARY_CUTOFF <- 5
 
-BIAS.COLORS <- c(
+BIAS_COLORS <- c(
   "GC biased" = "blue",
   "AT biased" = "red",
   "GC bias warning" = "cornflowerblue",
