@@ -1,1 +1,43 @@
 # panelGC
+
+## Introduction
+This tool addresses the challenge of biased coverage in regions with varying GC content, which is a common issue in hybridization capture sequencing. panelGC efficiently quantifies and monitors GC biases, ensuring improved fidelity in CNV calling.
+
+## Dependencies
+- Nextflow (tested with 21.10.6)
+- Singularity (tested with 2.5.1)
+
+## Installation
+- Install Nextflow (if not already installed):
+```bash
+curl -s https://get.nextflow.io | bash
+```
+- Install Singularity (if not included with Nextflow):
+Refer to the official [Singularity installation guide](https://docs.sylabs.io/guides/latest/user-guide/quick_start.html).
+- Clone the panelGC repository:
+```bash
+git clone https://github.com/easygsea/panelGC.git
+```
+
+## Usage
+Run panelGC with the following command:
+```bash
+nextflow run panelGC.nf \
+  --bam_directory_path /path/to/bam_files/ \
+  --bed_file_path /path/to/bed_file.bed \
+  --fasta_file_path /path/to/fasta_file.fa \
+  --out_dir /path/to/output_directory/
+```
+Replace the paths with your actual data directories and file paths.
+
+### Parameters
+- --bam_directory_path: Path to the directory containing BAM files. \
+- --bed_file_path: Path to the BED file. \
+- --fasta_file_path: Path to the FASTA file. \
+- --out_dir: Path to the output directory. \
+
+## Support
+For support, questions, or contributions, please open an issue or a pull request in the repository.
+
+## Citation
+If you use panelGC in your research, please cite:

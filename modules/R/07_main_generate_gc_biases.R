@@ -12,9 +12,9 @@ main <- function(
     outdir) {
   message("In main function")
   # Set variable names.
-  relative_bias_name <- str_glue("bias_{GC.LOWER.ANCHOR}vs{GC.UPPER.ANCHOR}")
-  at_bias_name <- str_glue("bias_{GC.LOWER.ANCHOR}")
-  gc_bias_name <- str_glue("bias_{GC.UPPER.ANCHOR}")
+  relative_bias_name <- str_glue("bias_{GC_LOWER_ANCHOR}vs{GC_UPPER_ANCHOR}")
+  at_bias_name <- str_glue("bias_{GC_LOWER_ANCHOR}")
+  gc_bias_name <- str_glue("bias_{GC_UPPER_ANCHOR}")
 
   ## ------ Read files.
   ## Read probes.
@@ -71,24 +71,29 @@ main <- function(
     row.names = FALSE
   )
 
-  cutoffs_failure <- compute_cutoffs(RELATIVE.FOLD.CHANGE.FAILURE.CUTOFF)
+  cutoffs_failure <- compute_cutoffs(RELATIVE_FOLD_CHANGE_FAILURE_CUTOFF)
   cutoff_failure_upper <- cutoffs_failure$upper
   cutoff_failure_lower <- cutoffs_failure$lower
 
-  cutoffs_warning <- compute_cutoffs(RELATIVE.FOLD.CHANGE.WARNING.CUTOFF)
+  cutoffs_warning <- compute_cutoffs(RELATIVE_FOLD_CHANGE_WARNING_CUTOFF)
   cutoff_warning_upper <- cutoffs_warning$upper
   cutoff_warning_lower <- cutoffs_warning$lower
 
   gc_bias_classification_table <- get_gc_bias_classification_table(
     gc_bias_regression_table,
-    cutoff_failure_upper, cutoff_failure_lower,
-    cutoff_warning_upper, cutoff_warning_lower,
-    relative_bias_name, at_bias_name, gc_bias_name
+    cutoff_failure_upper,
+    cutoff_failure_lower,
+    cutoff_warning_upper,
+    cutoff_warning_lower,
+    relative_bias_name,
+    at_bias_name,
+    gc_bias_name
   )
 
   # The file recording LOESS regression results.
   outfile_gc_bias_classification <- file.path(
-    outdir, "gc_bias_loess_classification.tsv"
+    outdir,
+    "gc_bias_loess_classification.tsv"
   )
 
   write.table(

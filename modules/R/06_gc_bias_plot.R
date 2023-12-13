@@ -20,7 +20,7 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification) {
     )) +
     coord_cartesian(xlim = c(0.0, 1.0), ylim = c(0, y_max)) +
     scale_x_continuous("Probe GC", breaks = seq(0, 1.0, 0.2)) +
-    scale_color_manual(values = BIAS.COLORS) +
+    scale_color_manual(values = BIAS_COLORS) +
     theme_bw(base_size = 20) +
     theme(legend.position = "right")
   return(p)
