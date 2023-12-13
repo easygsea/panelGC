@@ -1,9 +1,5 @@
 #! /usr/bin/env Rscript
-
-# Before executing the program, please run the following command to configure
-# the appropriate R environment:
-
-message("Compute and classify GC biases. Loading packages and functions ...")
+message("Loading packages and functions...")
 
 suppressPackageStartupMessages({
   library(argparser)
@@ -18,17 +14,19 @@ suppressPackageStartupMessages({
 options(dplyr.summarise.inform = FALSE)
 
 # Global variables ----
-GC.UPPER.ANCHOR <- 75
-GC.LOWER.ANCHOR <- 25
-RELATIVE.FOLD.CHANGE.FAILURE.CUTOFF <- 2
-RELATIVE.FOLD.CHANGE.WARNING.CUTOFF <- 1.5
-# Exlusive minimum fraction of libraries showing GC bias/ONCOCNV calls that signals a
-# potential issue for a panel.
-PANEL.GC.BIAS.PASS.RATIO.CUTOFF <- 0.7
+GC_UPPER_ANCHOR <- 75
+GC_LOWER_ANCHOR <- 25
+RELATIVE_FOLD_CHANGE_FAILURE_CUTOFF <- 2
+RELATIVE_FOLD_CHANGE_WARNING_CUTOFF <- 1.5
+# Exclusive minimum fraction of libraries showing GC bias/ONCOCNV
+# calls that signals a potential issue for a panel.
+# TODO: This variable is not used
+PANEL_GC_BIAS_PASS_RATIO_CUTOFF <- 0.7
 # Minimum number of fresh libraries required for gating.
-N.LIBRARY.CUTOFF <- 5
+# TODO: This variable is not used
+N_LIBRARY_CUTOFF <- 5
 
-BIAS.COLORS <- c(
+BIAS_COLORS <- c(
   "GC biased" = "blue",
   "AT biased" = "red",
   "GC bias warning" = "cornflowerblue",
@@ -203,9 +201,13 @@ get_gc_bias_classification_table <- function(
   )
   gc_bias_classification <- classify_gc_bias(
     gc_bias_loess,
-    relative_bias_cutoff_failure_upper, relative_bias_cutoff_failure_lower,
-    relative_bias_cutoff_warning_upper, relative_bias_cutoff_warning_lower,
-    relative_bias_name, at_bias_name, gc_bias_name
+    relative_bias_cutoff_failure_upper,
+    relative_bias_cutoff_failure_lower,
+    relative_bias_cutoff_warning_upper,
+    relative_bias_cutoff_warning_lower,
+    relative_bias_name,
+    at_bias_name,
+    gc_bias_name
   )
   return(gc_bias_classification)
 }
@@ -242,7 +244,8 @@ classify_gc_bias <- function(
   return(gc_bias_classification)
 }
 
-# TODO: think about a name change to justfiy including this function in this module.
+# TODO: think about a name change to justify including
+# this function in this module.
 calculate_gc_bias_loess <- function(
     gc_bias_regression,
     relative_bias_name,
@@ -250,7 +253,7 @@ calculate_gc_bias_loess <- function(
     gc_bias_name) {
   gc_bias_loess <- gc_bias_regression %>%
     filter(
-      gc_bin == GC.UPPER.ANCHOR / 100 | gc_bin == GC.LOWER.ANCHOR / 100
+      gc_bin == GC_UPPER_ANCHOR / 100 | gc_bin == GC_LOWER_ANCHOR / 100
     ) %>%
     select(library, gc_bin, Loess) %>%
     mutate(gc_bin = gc_bin * 100) %>%
@@ -259,6 +262,7 @@ calculate_gc_bias_loess <- function(
       names_prefix = "bias_"
     ) %>%
     # GC-to-AT relative bias is computed as
+    # TODO: Is this comment needed? Remove.
     # log2(HQ_Depth_GCupper/HQ_Depth_GClower + 1)
     mutate(!!relative_bias_name :=
       log2((2**get(gc_bias_name) - 1) /
@@ -287,7 +291,7 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification) {
     )) +
     coord_cartesian(xlim = c(0.0, 1.0), ylim = c(0, y_max)) +
     scale_x_continuous("Probe GC", breaks = seq(0, 1.0, 0.2)) +
-    scale_color_manual(values = BIAS.COLORS) +
+    scale_color_manual(values = BIAS_COLORS) +
     theme_bw(base_size = 20) +
     theme(legend.position = "right")
   return(p)
@@ -300,9 +304,9 @@ main <- function(
     outdir) {
   message("In main function")
   # Set variable names.
-  relative_bias_name <- str_glue("bias_{GC.LOWER.ANCHOR}vs{GC.UPPER.ANCHOR}")
-  at_bias_name <- str_glue("bias_{GC.LOWER.ANCHOR}")
-  gc_bias_name <- str_glue("bias_{GC.UPPER.ANCHOR}")
+  relative_bias_name <- str_glue("bias_{GC_LOWER_ANCHOR}vs{GC_UPPER_ANCHOR}")
+  at_bias_name <- str_glue("bias_{GC_LOWER_ANCHOR}")
+  gc_bias_name <- str_glue("bias_{GC_UPPER_ANCHOR}")
 
   ## ------ Read files.
   ## Read probes.
@@ -359,24 +363,29 @@ main <- function(
     row.names = FALSE
   )
 
-  cutoffs_failure <- compute_cutoffs(RELATIVE.FOLD.CHANGE.FAILURE.CUTOFF)
+  cutoffs_failure <- compute_cutoffs(RELATIVE_FOLD_CHANGE_FAILURE_CUTOFF)
   cutoff_failure_upper <- cutoffs_failure$upper
   cutoff_failure_lower <- cutoffs_failure$lower
 
-  cutoffs_warning <- compute_cutoffs(RELATIVE.FOLD.CHANGE.WARNING.CUTOFF)
+  cutoffs_warning <- compute_cutoffs(RELATIVE_FOLD_CHANGE_WARNING_CUTOFF)
   cutoff_warning_upper <- cutoffs_warning$upper
   cutoff_warning_lower <- cutoffs_warning$lower
 
   gc_bias_classification_table <- get_gc_bias_classification_table(
     gc_bias_regression_table,
-    cutoff_failure_upper, cutoff_failure_lower,
-    cutoff_warning_upper, cutoff_warning_lower,
-    relative_bias_name, at_bias_name, gc_bias_name
+    cutoff_failure_upper,
+    cutoff_failure_lower,
+    cutoff_warning_upper,
+    cutoff_warning_lower,
+    relative_bias_name,
+    at_bias_name,
+    gc_bias_name
   )
 
   # The file recording LOESS regression results.
   outfile_gc_bias_classification <- file.path(
-    outdir, "gc_bias_loess_classification.tsv"
+    outdir,
+    "gc_bias_loess_classification.tsv"
   )
 
   write.table(
