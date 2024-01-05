@@ -1,7 +1,7 @@
 # panelGC
 
 ## Introduction
-This tool addresses the challenge of biased coverage in regions with varying GC content, which is a common issue in hybridization capture sequencing. panelGC efficiently quantifies and monitors GC biases, ensuring improved fidelity in CNV calling.
+panelGC effectively quantifies and monitors GC bias in hybridization capture sequencing, identifying and flagging potential sample and/or procedural anomalies.
 
 ## Dependencies
 - Nextflow (tested with 21.10.6)
