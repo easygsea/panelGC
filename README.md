@@ -30,6 +30,11 @@ nextflow run panelGC.nf \
 ```
 Replace the paths with your actual data directories and file paths.
 
+**Note:** If you have limited space in your working directory or prefer to store the Singularity container in a different location, you can set the 'NXF_SINGULARITY_CACHEDIR' environment variable. This variable allows you to specify a custom path for storing Singularity images. To use this feature, export the 'NXF_SINGULARITY_CACHEDIR' variable with your desired path before running the panelGC command. For example:
+
+```bash
+export NXF_SINGULARITY_CACHEDIR=/path/to/singularity_cache/
+```
 ## Memory Requirements
 The bedtools_coverage process in panelGC is configured to use a maximum of 4 forks, as it typically requires around ~15GB per fork. It's important to note that users with less than 100GB of memory may need to decrease the number of forks, while those with more than 100GB can consider increasing it for potentially better performance.
 
