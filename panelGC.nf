@@ -9,20 +9,35 @@ params.out_dir = ''
 
 // Check if the paths are not empty and the files exist
 if (!params.bam_directory_path || !new File(params.bam_directory_path).exists()) {
-    exit 1, "Missing or incorrect path for --bam_directory_path parameter!"
+    exit 1,  """
+    Error: Missing or incorrect path for --bam_directory_path parameter.
+    Please ensure the input directory for alignment BAM files exists.
+    """
 }
 if (!params.bed_file_path || !new File(params.bed_file_path).exists()) {
-    exit 1, "Missing or incorrect path for --bed_file_path parameter!"
+    exit 1, """
+    Error: Missing or incorrect path for --bed_file_path parameter.
+    Please ensure the BED file for probes or genomic bins exists.
+    """
 }
 if (!params.fasta_file_path || !new File(params.fasta_file_path).exists()) {
-    exit 1, "Missing or incorrect path for --fasta_file_path parameter!"
+    exit 1, """
+    Error: Missing or incorrect path for --fasta_file_path parameter.
+    Please ensure the genome FASTA file exists.
+    """
 }
 if (!params.out_dir || !new File(params.out_dir).exists()) {
-    exit 1, "Missing or incorrect path for --out_dir parameter!"
+    exit 1, """
+    Error: Missing or incorrect path for --out_dir parameter.
+    Please ensure the output directory exists.
+    """
 }
 // Check if the BAM directory contains any .bam files
 if (!new File(params.bam_directory_path).list().any { it.endsWith('.bam') }) {
-    exit 1, "The specified BAM directory does not contain any .bam files!"
+    exit 1, """
+    Error: No .bam files found in the input BAM directory.
+    Please verify the path and content for --bam_directory_path.
+    """
 }
 
 reference_fasta = file(params.fasta_file_path)
@@ -67,7 +82,7 @@ process bedtools_coverage {
     script:
     """
     cut -f1-3 $probe_bed >> only_required_columns.bed
-    bedtools coverage -d -a only_required_columns.bed -b $intersected_bam > ${library_id}_intersected_coverage.bed
+    bedtools coverage -d -abam $intersected_bam -b only_required_columns.bed > ${library_id}_intersected_coverage.bed
     """
 }
 
@@ -84,11 +99,11 @@ process bedtools_getfasta {
 
     script:
     """
-    bedtools getfasta -fi $reference_fasta -bed $probe_bed > extracted_sequences.fasta
+    bedtools getfasta -fi $reference_fasta -bed $probe_bed -fo extracted_sequences.fasta
     """
 }
 
-process generate_gc_content_summary {
+process calculate_gc_content {
     /*
      * Run helper bash script to create GC content.
      */
@@ -109,28 +124,27 @@ process create_soft_links {
     input:
     path bed_files
 
-    // Output: path of the new directory containing soft links
+    // Output: path of a temporary directory containing soft links
     output:
-    path "temp_folder"
+    path "temporary_folder"
 
     script:
     """
-    # Create a unique directory
-    # Not sure if -p is essential
-    mkdir -p "temp_folder"
+    # Create a temporary directory
+    mkdir -p "temporary_folder"
     
     # Create soft links for each file in the directory
     for file in ${bed_files}
     do
         echo \$file
-        ln -s \$(readlink -f \$file) "temp_folder/"
+        ln -s \$(readlink -f \$file) "temporary_folder/"
     done
     """
 }
 
 process generate_gc_bias {
     /*
-     * Run generate_gc_bias executable
+     * Run panelGC_main.R executable
      */
     input:
     path probe_bed
@@ -155,7 +169,7 @@ workflow {
     
    
     gc_content_summary = bedtools_getfasta(probe_bed, reference_fasta) 
-			| generate_gc_content_summary
+			| calculate_gc_content
 
     
     generate_gc_bias(
