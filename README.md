@@ -46,6 +46,15 @@ To modify the fork settings, adjust the maxForks parameter in the bedtools_cover
 - --fasta_file_path: Path to the genome FASTA file.
 - --out_dir: Path to the output directory.
 
+## Output
+Three files are returned by panelGC:
+1. gc_bias_loess_regression.tsv:
+Records LOESS depth per GC percentile per sample.
+2. gc_bias_loess_classification.tsv:
+Records b<sub>75/25</sub> score and bias classification per sample.
+3. gc_bias_curves.png:
+The GC profile plot.
+
 ## Support
 For support, questions, or contributions, please open an issue or a pull request in the repository.
 
