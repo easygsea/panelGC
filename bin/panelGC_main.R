@@ -18,13 +18,6 @@ GC_UPPER_ANCHOR <- 75
 GC_LOWER_ANCHOR <- 25
 RELATIVE_FOLD_CHANGE_FAILURE_CUTOFF <- 2
 RELATIVE_FOLD_CHANGE_WARNING_CUTOFF <- 1.5
-# Exclusive minimum fraction of libraries showing GC bias/ONCOCNV
-# calls that signals a potential issue for a panel.
-# TODO: This variable is not used
-PANEL_GC_BIAS_PASS_RATIO_CUTOFF <- 0.7
-# Minimum number of fresh libraries required for gating.
-# TODO: This variable is not used
-N_LIBRARY_CUTOFF <- 5
 
 BIAS_COLORS <- c(
   "GC biased" = "blue",
@@ -87,7 +80,7 @@ read_gc_content_file <- function(file_path) {
   )
 
   # Process the data
-  manipulated_data <- data %>%
+  reformatted_data <- data %>%
     separate(region, into = c("chromosome", "positions"), sep = "[:]") %>%
     separate(positions, into = c("start_pos", "end_pos"), sep = "-") %>%
     mutate(
@@ -95,12 +88,12 @@ read_gc_content_file <- function(file_path) {
       end_pos = as.integer(end_pos)
     )
 
-  return(manipulated_data)
+  return(reformatted_data)
 }
 
 read_bed_file <- function(file_path) {
-  message("in read bed file")
-  # Replace 'your_file.bed' with the path to your BED file
+  message("Begin reading bed file content.")
+  # Supply your BED file path with --bed_file_path
   bed_data <- suppressMessages(
     read_tsv(file_path, col_names = FALSE)
   )
@@ -114,8 +107,8 @@ read_bed_file <- function(file_path) {
 
   # Ensuring the first three columns are named correctly
   colnames(bed_data)[1:3] <- c("chromosome", "probe_start_pos", "probe_end_pos")
-  message("leaving read bed file")
-  # Convert to tibble
+  message("End reading bed content.")
+  
   return(bed_data)
 }
 add_offset_to_start_position_and_drop_columns <- function(tibble) {
@@ -123,18 +116,18 @@ add_offset_to_start_position_and_drop_columns <- function(tibble) {
     # Add offset to start position. Subtract one as offset starts with 1.
     mutate(position = probe_start_pos + offset - 1) %>%
     # Select the required columns
-    select(library, probe_name, chromosome, position, depth, )
+    select(library, probe_name, chromosome, position, depth)
 }
 calculate_gc_bias_regression <- function(bin_gc_summary) {
   gc_bias_regression <- bin_gc_summary %>%
     group_by(library) %>%
-    arrange(library, gc_bin) %>%
+    arrange(library, gc_percentile) %>%
     nest() %>%
-    mutate(Loess = purrr::map(data, function(x) {
-      stats::loess(normalized_depth ~ gc_bin, span = 0.75, data = x) %>%
-        stats::predict(gc_bin = unique(gc_bin))
+    mutate(loess_depth = purrr::map(data, function(x) {
+      stats::loess(normalized_depth ~ gc_percentile, span = 0.75, data = x) %>%
+        stats::predict(gc_percentile = unique(gc_percentile))
     })) %>%
-    unnest(cols = c(data, Loess))
+    unnest(cols = c(data, loess_depth))
   return(gc_bias_regression)
 }
 
@@ -147,20 +140,19 @@ get_gc_bias_regression_table <- function(
     group_by(library) %>%
     summarise(mean_depth = mean(depth))
 
-  # Compute the median depth of each probe per library.
+  # Compute the median depth of each probe (or genomic bin) per library.
   gc_summary <- raw_bam_readcount_intersected_probes %>%
     inner_join(gc_content,
-      by = c("probe_name" = "probe_name"), ## TODO: remove 'by'
       multiple = "all"
     ) %>%
     group_by(probe_name, GC, library) %>%
     summarise(depth_median = median(depth))
 
-  # Compute the median depth across probes within a GC percentile bin.
+  # Compute the median depth across probes (or genomic bins) with the same GC content.
   bin_gc_summary <- gc_summary %>%
     group_by(library) %>%
-    mutate(gc_bin = floor(GC * 100) / 100) %>%
-    group_by(library, gc_bin) %>%
+    mutate(gc_percentile = floor(GC * 100) / 100) %>%
+    group_by(library, gc_percentile) %>%
     summarise(depth_median_median = median(depth_median))
 
   # Normalization by mean library depth.
@@ -239,7 +231,7 @@ classify_gc_bias <- function(
     ) %>%
     # Convert Bias_Score into fold change.
     mutate(
-      bias_score_fold_change = 2**bias_score - 1, .after = "bias_score"
+      bias_score_fold_change = 2 ** bias_score - 1, .after = "bias_score"
     )
   return(gc_bias_classification)
 }
@@ -253,20 +245,18 @@ calculate_gc_bias_loess <- function(
     gc_bias_name) {
   gc_bias_loess <- gc_bias_regression %>%
     filter(
-      gc_bin == GC_UPPER_ANCHOR / 100 | gc_bin == GC_LOWER_ANCHOR / 100
+      gc_percentile == GC_UPPER_ANCHOR / 100 | gc_percentile == GC_LOWER_ANCHOR / 100
     ) %>%
-    select(library, gc_bin, Loess) %>%
-    mutate(gc_bin = gc_bin * 100) %>%
+    select(library, gc_percentile, loess_depth) %>%
+    mutate(gc_percentile = gc_percentile * 100) %>%
     pivot_wider(
-      names_from = gc_bin, values_from = Loess,
+      names_from = gc_percentile, values_from = loess_depth,
       names_prefix = "bias_"
     ) %>%
-    # GC-to-AT relative bias is computed as
-    # TODO: Is this comment needed? Remove.
-    # log2(HQ_Depth_GCupper/HQ_Depth_GClower + 1)
+    # Compute GC-to-AT relative bias score.
     mutate(!!relative_bias_name :=
-      log2((2**get(gc_bias_name) - 1) /
-        (2**get(at_bias_name) - 1) + 1))
+      log2((2 ** get(gc_bias_name) - 1) /
+        (2 ** get(at_bias_name) - 1) + 1))
   return(gc_bias_loess)
 }
 plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification) {
@@ -281,17 +271,15 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification) {
       ),
       by = "library", multiple = "all"
     ) %>%
-    ggplot(aes(x = gc_bin, y = normalized_depth, color = bias_type)) +
+    ggplot(aes(x = gc_percentile, y = normalized_depth, color = bias_type)) +
     geom_smooth(aes(group = library),
       method = "loess", formula = y ~ x, se = FALSE, fullrange = TRUE
     ) +
-    scale_y_continuous("Relative Depth Per GC Bin") +
-    ggtitle(str_glue(
-      "Probe GC Content vs. Coverage by Library"
-    )) +
+    scale_y_continuous("LOESS Depth Per GC Percentile") +
+    ggtitle("GC Content vs. Coverage by Sample") +
     coord_cartesian(xlim = c(0.0, 1.0), ylim = c(0, y_max)) +
-    scale_x_continuous("Probe GC", breaks = seq(0, 1.0, 0.2)) +
-    scale_color_manual(values = BIAS_COLORS) +
+    scale_x_continuous("GC", breaks = seq(0, 1.0, 0.2)) +
+    scale_color_manual(name = "Bias Type", values = BIAS_COLORS) +
     theme_bw(base_size = 20) +
     theme(legend.position = "right")
   return(p)
@@ -330,7 +318,8 @@ main <- function(
   )
   all_libraries_raw_coverage <- raw_coverage_tibbles %>%
     imap(~ mutate(.x, library = .y)) %>%
-    bind_rows()
+    bind_rows() %>%
+    mutate(library = sub("_intersected_coverage$", "", library))
   ## Add probe name/identifier to reference_gc_content.
   all_libraries_raw_coverage <- all_libraries_raw_coverage %>% left_join(
     probes,
