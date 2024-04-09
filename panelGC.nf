@@ -82,7 +82,7 @@ process bedtools_coverage {
     script:
     """
     cut -f1-3 $probe_bed >> only_required_columns.bed
-    bedtools coverage -d -abam $intersected_bam -b only_required_columns.bed > ${library_id}_intersected_coverage.bed
+    bedtools coverage -d -a only_required_columns.bed -b $intersected_bam > ${library_id}_intersected_coverage.bed
     """
 }
 
