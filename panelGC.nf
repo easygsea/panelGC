@@ -176,7 +176,7 @@ workflow {
 		probe_bed,
 		create_soft_links(coverage_files.collect()),
 		gc_content_summary,
-		params.out_dir
+		file(params.out_dir)
    )
 
 }
