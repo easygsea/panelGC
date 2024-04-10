@@ -116,12 +116,12 @@ add_offset_to_start_position_and_drop_columns <- function(tibble) {
     # Add offset to start position. Subtract one as offset starts with 1.
     mutate(position = probe_start_pos + offset - 1) %>%
     # Select the required columns
-    select(library, probe_name, chromosome, position, depth)
+    select(sample, probe_name, chromosome, position, depth)
 }
 calculate_gc_bias_regression <- function(bin_gc_summary) {
   gc_bias_regression <- bin_gc_summary %>%
-    group_by(library) %>%
-    arrange(library, gc_percentile) %>%
+    group_by(sample) %>%
+    arrange(sample, gc_percentile) %>%
     nest() %>%
     mutate(loess_depth = purrr::map(data, function(x) {
       stats::loess(normalized_depth ~ gc_percentile, span = 0.75, data = x) %>%
@@ -134,31 +134,31 @@ calculate_gc_bias_regression <- function(bin_gc_summary) {
 get_gc_bias_regression_table <- function(
     raw_bam_readcount_intersected_probes,
     gc_content) {
-  mean_library_depths <- raw_bam_readcount_intersected_probes %>%
-    select(library, chromosome, position, depth) %>%
+  mean_sample_depths <- raw_bam_readcount_intersected_probes %>%
+    select(sample, chromosome, position, depth) %>%
     distinct() %>%
-    group_by(library) %>%
+    group_by(sample) %>%
     summarise(mean_depth = mean(depth))
 
-  # Compute the median depth of each probe (or genomic bin) per library.
+  # Compute the median depth of each probe (or genomic bin) per sample.
   gc_summary <- raw_bam_readcount_intersected_probes %>%
     inner_join(gc_content,
       multiple = "all"
     ) %>%
-    group_by(probe_name, GC, library) %>%
+    group_by(probe_name, GC, sample) %>%
     summarise(depth_median = median(depth))
 
   # Compute the median depth across probes (or genomic bins) with the same GC content.
   bin_gc_summary <- gc_summary %>%
-    group_by(library) %>%
+    group_by(sample) %>%
     mutate(gc_percentile = floor(GC * 100) / 100) %>%
-    group_by(library, gc_percentile) %>%
+    group_by(sample, gc_percentile) %>%
     summarise(depth_median_median = median(depth_median))
 
-  # Normalization by mean library depth.
+  # Normalization by mean sample depth.
   bin_gc_summary <- left_join(
-    bin_gc_summary, mean_library_depths,
-    by = "library"
+    bin_gc_summary, mean_sample_depths,
+    by = "sample"
   ) %>%
     mutate(normalized_depth = log2(
       depth_median_median / mean_depth + 1
@@ -247,7 +247,7 @@ calculate_gc_bias_loess <- function(
     filter(
       gc_percentile == GC_UPPER_ANCHOR / 100 | gc_percentile == GC_LOWER_ANCHOR / 100
     ) %>%
-    select(library, gc_percentile, loess_depth) %>%
+    select(sample, gc_percentile, loess_depth) %>%
     mutate(gc_percentile = gc_percentile * 100) %>%
     pivot_wider(
       names_from = gc_percentile, values_from = loess_depth,
@@ -262,17 +262,17 @@ calculate_gc_bias_loess <- function(
 plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification) {
   # Maximum of y-axis.
   y_max <- ceiling(max(pull(gc_bias_regression, normalized_depth)))
-  # Generate library GC profiles plot.
+  # Generate sample GC profiles plot.
   p <- gc_bias_regression %>%
     left_join(
       select(
         gc_bias_classification,
-        "library", "bias_type"
+        "sample", "bias_type"
       ),
-      by = "library", multiple = "all"
+      by = "sample", multiple = "all"
     ) %>%
     ggplot(aes(x = gc_percentile, y = normalized_depth, color = bias_type)) +
-    geom_smooth(aes(group = library),
+    geom_smooth(aes(group = sample),
       method = "loess", formula = y ~ x, se = FALSE, fullrange = TRUE
     ) +
     scale_y_continuous("LOESS Depth Per GC Percentile") +
@@ -311,15 +311,15 @@ main <- function(
       "end_pos" = "probe_end_pos"
     )
   )
-  ## Read coverage data for each library.
+  ## Read coverage data for each sample.
   raw_coverage_tibbles <- read_coverage_files_and_create_tibbles(
     bam_coverage_directory,
     "_intersected_coverage\\.bed$"
   )
   all_libraries_raw_coverage <- raw_coverage_tibbles %>%
-    imap(~ mutate(.x, library = .y)) %>%
+    imap(~ mutate(.x, sample = .y)) %>%
     bind_rows() %>%
-    mutate(library = sub("_intersected_coverage$", "", library))
+    mutate(sample = sub("_intersected_coverage$", "", sample))
   ## Add probe name/identifier to reference_gc_content.
   all_libraries_raw_coverage <- all_libraries_raw_coverage %>% left_join(
     probes,
@@ -342,7 +342,7 @@ main <- function(
     outdir, "gc_bias_loess_regression.tsv"
   )
   # Check if LOESS regression table exists and overwrite disabled. If yes, load;
-  # else compute the relative HQ depth for each GC bin per library, perform
+  # else compute the relative HQ depth for each GC bin per sample, perform
   # LOESS regression, and obtain predicted relative HQ depth for each GC bin.
   write.table(
     gc_bias_regression_table,
@@ -401,10 +401,9 @@ main <- function(
 parse_args_function <- function() {
   parser <- arg_parser(
     paste(
-      "R script for calculating and visualizing library GC biases for each",
-      "library in the input directory. This program requires bam fileof each",
-      "library in a directory, probes BED file and reference sequence FASTA",
-      "file. Usage = generate_gc_biases.R --probe_bed_file <probe_bed_file>",
+      "R script for calculating and visualizing GC biases. Required inputs are",
+      "bam files in a directory, probes BED file and reference sequence FASTA.",
+      "Usage = generate_gc_biases.R --probe_bed_file <probe_bed_file>",
       "--bam_coverage_directory <bam_coverage_directory>",
       "--reference_gc_content_file <reference_gc_content_file>",
       "--outdir <outdir>"
@@ -414,7 +413,7 @@ parse_args_function <- function() {
   parser <- add_argument(
     parser,
     "--bam_coverage_directory",
-    help = "Directory of coverage files for each library. Expects
+    help = "Directory of coverage files for each sample. Expects
 	'_intersected_coverage.bed'	suffix on each file."
   )
   parser <- add_argument(
