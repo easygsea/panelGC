@@ -59,4 +59,4 @@ The GC profile plot.
 For support, questions, or contributions, please open an issue or a pull request in the repository.
 
 ## Citation
-If you use panelGC in your research, please cite:
+Cheng X, Goktas MT, Williamson LM, Krzywinski M, Swanson L, Slind J, Sihvonen J, Chow C, Carr A, Bosdet I, Tucker T, Young S, Moore R, Mungall KL, Yip S, Jones SJM. Enhancing clinical genomic accuracy: panelGC, a novel metric and tool for quantifying and monitoring GC biases in hybridization capture panel sequencing. 2024.
