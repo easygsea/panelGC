@@ -6,6 +6,14 @@ params.bam_directory_path = ''
 params.bed_file_path = ''
 params.fasta_file_path = ''
 params.out_dir = ''
+params.at_anchor = 25
+params.gc_anchor = 75
+params.failure_fold_change = 2
+params.warning_fold_change = 1.5
+params.failure_at = 1.5
+params.failure_gc = 1.5
+params.draw_trend = false
+params.show_sample_names = true
 
 // Check if the paths are not empty and the files exist
 if (!params.bam_directory_path || !new File(params.bam_directory_path).exists()) {
@@ -37,6 +45,57 @@ if (!new File(params.bam_directory_path).list().any { it.endsWith('.bam') }) {
     exit 1, """
     Error: No .bam files found in the input BAM directory.
     Please verify the path and content for --bam_directory_path.
+    """
+}
+// Check if AT and GC anchors are within expected numeric ranges
+if (!(params.at_anchor > 0 && params.at_anchor < 50)) {
+    exit 1, """
+    Error: at_anchor should be > 0 and < 50.
+    Please check your input.
+    """
+}
+if (!(params.gc_anchor > 50 && params.gc_anchor < 100)) {
+    exit 1, """
+    Error: gc_anchor should be > 50 and < 100.
+    Please check your input.
+    """
+}
+// Check failure and warning thresholds
+if (!(params.failure_fold_change > 0)) {
+    exit 1, """
+    Error: failure_fold_change should be > 0.
+    Please check your input.
+    """
+}
+if (!(params.warning_fold_change > 0)) {
+    exit 1, """
+    Error: warning_fold_change should be > 0.
+    Please check your input.
+    """
+}
+if (params.warning_fold_change > params.failure_fold_change) {
+    exit 1, """
+    Error: failure_fold_change should be higher than warning_fold_change.
+    Please check your input.
+    """
+}
+if (!(params.failure_at > 0 && params.failure_gc > 0)) {
+    exit 1, """
+    Error: Both failure_at and failure_gc should be > 0.
+    Please check your input.
+    """
+}
+// Check boolean parameters
+if (!(params.draw_trend.toString().toLowerCase() in ['true', '1', 't', 'false', '0', 'f'])) {
+    exit 1, """
+    Error: --draw_trend should be boolean: true or false.
+    Please check your input.
+    """
+}
+if (!(params.show_sample_names.toString().toLowerCase() in ['true', '1', 't', 'false', '0', 'f'])) {
+    exit 1, """
+    Error: --show_sample_names should be boolean: true or false.
+    Please check your input.
     """
 }
 
@@ -151,6 +210,14 @@ process generate_gc_bias {
     path intersected_coverage_dir
     path gc_content_summary
     path out_dir
+    val at_anchor
+    val gc_anchor
+    val failure_fold_change
+    val warning_fold_change
+    val failure_at
+    val failure_gc
+    val draw_trend
+    val show_sample_names
 
     output:
     path "${out_dir}/gc_bias_curves.png"
@@ -158,7 +225,11 @@ process generate_gc_bias {
     script:
     """
     panelGC_main.R --probe_bed_file $probe_bed --bam_coverage_directory $intersected_coverage_dir \
-    --reference_gc_content_file $gc_content_summary --outdir $out_dir
+    --reference_gc_content_file $gc_content_summary --outdir $out_dir \
+    --at_anchor $at_anchor --gc_anchor $gc_anchor \
+    --failure_fold_change $failure_fold_change --warning_fold_change $warning_fold_change \
+    --failure_at $failure_at --failure_gc $failure_gc \
+    --draw_trend $draw_trend --show_sample_names $show_sample_names
     """
 }
 
@@ -176,7 +247,24 @@ workflow {
 		probe_bed,
 		create_soft_links(coverage_files.collect()),
 		gc_content_summary,
-		file(params.out_dir)
+		file(params.out_dir),
+        params.at_anchor,
+        params.gc_anchor,
+        params.failure_fold_change,
+        params.warning_fold_change,
+        params.failure_at,
+        params.failure_gc,
+        params.draw_trend,
+        params.show_sample_names
    )
+}
 
+workflow.onError {
+    error_msg = """
+    Error: Pipeline execution stopped.
+    Please ensure the right genome (--fasta_file_path) and probes/genomic bins (--bed_file_path) are used.
+    Please ensure the right alignment bams (--bam_directory_path) are supplied.
+    If the error persists, increase --at_anchor and/or decrease --gc_anchor, as your dataset may have a narrower GC content distribution.
+    """
+    println error_msg
 }

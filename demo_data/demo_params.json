@@ -1,0 +1,7 @@
+{
+  "bam_directory_path": "demo_data",
+  "bed_file_path": "demo_data/demo_probes.bed",
+  "fasta_file_path": "demo_data/hg19.fa",
+  "out_dir": "demo_output",
+  "draw_trend": true
+}

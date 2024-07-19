@@ -1,11 +1,7 @@
 #! /usr/bin/env Rscript
-message("Loading packages and functions...")
-
 suppressPackageStartupMessages({
   library(argparser)
-  library(data.table)
   library(GenomicRanges)
-  library(readxl)
   library(rtracklayer)
   library(tidyverse)
 })
@@ -14,11 +10,6 @@ suppressPackageStartupMessages({
 options(dplyr.summarise.inform = FALSE)
 
 # Global variables ----
-GC_UPPER_ANCHOR <- 75
-GC_LOWER_ANCHOR <- 25
-RELATIVE_FOLD_CHANGE_FAILURE_CUTOFF <- 2
-RELATIVE_FOLD_CHANGE_WARNING_CUTOFF <- 1.5
-
 BIAS_COLORS <- c(
   "GC biased" = "blue",
   "AT biased" = "red",
@@ -26,6 +17,7 @@ BIAS_COLORS <- c(
   "AT bias warning" = "coral",
   "no bias" = "darkgrey"
 )
+
 read_coverage_files_and_create_tibbles <- function(
     directory_path,
     file_pattern) {
@@ -92,7 +84,6 @@ read_gc_content_file <- function(file_path) {
 }
 
 read_bed_file <- function(file_path) {
-  message("Begin reading bed file content.")
   # Supply your BED file path with --bed_file_path
   bed_data <- suppressMessages(
     read_tsv(file_path, col_names = FALSE)
@@ -107,10 +98,10 @@ read_bed_file <- function(file_path) {
 
   # Ensuring the first three columns are named correctly
   colnames(bed_data)[1:3] <- c("chromosome", "probe_start_pos", "probe_end_pos")
-  message("End reading bed content.")
-  
+
   return(bed_data)
 }
+
 add_offset_to_start_position_and_drop_columns <- function(tibble) {
   tibble %>%
     # Add offset to start position. Subtract one as offset starts with 1.
@@ -118,6 +109,7 @@ add_offset_to_start_position_and_drop_columns <- function(tibble) {
     # Select the required columns
     select(sample, probe_name, chromosome, position, depth)
 }
+
 calculate_gc_bias_regression <- function(bin_gc_summary) {
   gc_bias_regression <- bin_gc_summary %>%
     group_by(sample) %>%
@@ -166,6 +158,7 @@ get_gc_bias_regression_table <- function(
 
   gc_bias_regression <- calculate_gc_bias_regression(bin_gc_summary)
 }
+
 compute_bias_cutoff <- function(fold_change_cutoff, is_upper) {
   bias_factor <- if (is_upper) fold_change_cutoff else 1 / fold_change_cutoff
   return(log2(bias_factor + 1))
@@ -183,7 +176,10 @@ get_gc_bias_classification_table <- function(
     relative_bias_cutoff_failure_lower,
     relative_bias_cutoff_warning_upper,
     relative_bias_cutoff_warning_lower,
-    relative_bias_name, at_bias_name,
+    cutoff_failure_at,
+    cutoff_failure_gc,
+    relative_bias_name,
+    at_bias_name,
     gc_bias_name) {
   gc_bias_loess <- calculate_gc_bias_loess(
     gc_bias_regression,
@@ -197,6 +193,8 @@ get_gc_bias_classification_table <- function(
     relative_bias_cutoff_failure_lower,
     relative_bias_cutoff_warning_upper,
     relative_bias_cutoff_warning_lower,
+    cutoff_failure_at,
+    cutoff_failure_gc,
     relative_bias_name,
     at_bias_name,
     gc_bias_name
@@ -210,28 +208,61 @@ classify_gc_bias <- function(
     relative_bias_cutoff_failure_lower,
     relative_bias_cutoff_warning_upper,
     relative_bias_cutoff_warning_lower,
+    cutoff_failure_at,
+    cutoff_failure_gc,
     relative_bias_name,
     at_bias_name,
     gc_bias_name) {
+  relative_bias_symbol <- as.symbol(relative_bias_name)
+  at_bias_symbol <- as.symbol(at_bias_name)
+  gc_bias_symbol <- as.symbol(gc_bias_name)
+  relative_failture_threshold_at_name <- str_glue("{relative_bias_name}_failure_threshold_at")
+  relative_failture_threshold_gc_name <- str_glue("{relative_bias_name}_failure_threshold_gc")
+  relative_warning_threshold_at_name <- str_glue("{relative_bias_name}_warning_threshold_at")
+  relative_warning_threshold_gc_name <- str_glue("{relative_bias_name}_warning_threshold_gc")
+  at_threshold_name <- str_glue("{at_bias_name}_failure_threshold")
+  gc_threshold_name <- str_glue("{gc_bias_name}_failure_threshold")
   gc_bias_classification <- gc_bias_loess %>%
-    pivot_longer(
-      cols = matches("^bias_.*[0-9]$"),
-      names_to = "bias_category",
-      values_to = "bias_score"
+    select(
+      c(
+        "sample",
+        all_of(relative_bias_name),
+        all_of(at_bias_name),
+        all_of(gc_bias_name)
+      )
     ) %>%
-    filter(bias_category == relative_bias_name) %>%
+    # Convert bias score into fold change.
     mutate(
+      across(
+        starts_with("bias_"), ~ 2 ** . - 1,
+        .names = "{.col}_fold_change"
+      )
+    ) %>%
+    mutate(
+      !!relative_failture_threshold_at_name := relative_bias_cutoff_failure_lower,
+      !!relative_failture_threshold_gc_name := relative_bias_cutoff_failure_upper,
+      !!relative_warning_threshold_at_name := relative_bias_cutoff_warning_lower,
+      !!relative_warning_threshold_gc_name := relative_bias_cutoff_warning_upper,
+      !!at_threshold_name := cutoff_failure_at,
+      !!gc_threshold_name := cutoff_failure_gc,
       bias_type = case_when(
-        bias_score >= relative_bias_cutoff_failure_upper ~ "GC biased",
-        bias_score <= relative_bias_cutoff_failure_lower ~ "AT biased",
-        bias_score >= relative_bias_cutoff_warning_upper ~ "GC bias warning",
-        bias_score <= relative_bias_cutoff_warning_lower ~ "AT bias warning",
+        !!relative_bias_symbol >= relative_bias_cutoff_failure_upper ~ "GC biased",
+        !!relative_bias_symbol <= relative_bias_cutoff_failure_lower ~ "AT biased",
+        !!gc_bias_symbol >= cutoff_failure_gc ~ "GC biased",
+        !!at_bias_symbol >= cutoff_failure_at ~ "AT biased",
+        !!relative_bias_symbol >= relative_bias_cutoff_warning_upper ~ "GC bias warning",
+        !!relative_bias_symbol <= relative_bias_cutoff_warning_lower ~ "AT bias warning",
         TRUE ~ "no bias"
       )
     ) %>%
-    # Convert Bias_Score into fold change.
-    mutate(
-      bias_score_fold_change = 2 ** bias_score - 1, .after = "bias_score"
+    select(
+      c(
+        sample,
+        starts_with(relative_bias_name),
+        starts_with(at_bias_name),
+        starts_with(gc_bias_name),
+        bias_type
+      )
     )
   return(gc_bias_classification)
 }
@@ -245,7 +276,7 @@ calculate_gc_bias_loess <- function(
     gc_bias_name) {
   gc_bias_loess <- gc_bias_regression %>%
     filter(
-      gc_percentile == GC_UPPER_ANCHOR / 100 | gc_percentile == GC_LOWER_ANCHOR / 100
+      gc_percentile == GC_ANCHOR / 100 | gc_percentile == AT_ANCHOR / 100
     ) %>%
     select(sample, gc_percentile, loess_depth) %>%
     mutate(gc_percentile = gc_percentile * 100) %>%
@@ -259,6 +290,7 @@ calculate_gc_bias_loess <- function(
         (2 ** get(at_bias_name) - 1) + 1))
   return(gc_bias_loess)
 }
+
 plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification) {
   # Maximum of y-axis.
   y_max <- ceiling(max(pull(gc_bias_regression, normalized_depth)))
@@ -278,7 +310,7 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification) {
     scale_y_continuous("LOESS Depth Per GC Percentile") +
     ggtitle("GC Content vs. Coverage by Sample") +
     coord_cartesian(xlim = c(0.0, 1.0), ylim = c(0, y_max)) +
-    scale_x_continuous("GC", breaks = seq(0, 1.0, 0.2)) +
+    scale_x_continuous("GC Content", breaks = seq(0, 1.0, 0.2)) +
     scale_color_manual(name = "Bias Type", values = BIAS_COLORS) +
     theme_bw(base_size = 20) +
     theme(legend.position = "right")
@@ -290,11 +322,10 @@ main <- function(
     bam_coverage_directory,
     reference_gc_content_file,
     outdir) {
-  message("In main function")
   # Set variable names.
-  relative_bias_name <- str_glue("bias_{GC_LOWER_ANCHOR}vs{GC_UPPER_ANCHOR}")
-  at_bias_name <- str_glue("bias_{GC_LOWER_ANCHOR}")
-  gc_bias_name <- str_glue("bias_{GC_UPPER_ANCHOR}")
+  relative_bias_name <- str_glue("bias_{AT_ANCHOR}vs{GC_ANCHOR}")
+  at_bias_name <- str_glue("bias_{AT_ANCHOR}")
+  gc_bias_name <- str_glue("bias_{GC_ANCHOR}")
 
   ## ------ Read files.
   ## Read probes.
@@ -341,9 +372,6 @@ main <- function(
   outfile_gc_bias_regression <- file.path(
     outdir, "gc_bias_loess_regression.tsv"
   )
-  # Check if LOESS regression table exists and overwrite disabled. If yes, load;
-  # else compute the relative HQ depth for each GC bin per sample, perform
-  # LOESS regression, and obtain predicted relative HQ depth for each GC bin.
   write.table(
     gc_bias_regression_table,
     file = outfile_gc_bias_regression,
@@ -352,13 +380,16 @@ main <- function(
     row.names = FALSE
   )
 
-  cutoffs_failure <- compute_cutoffs(RELATIVE_FOLD_CHANGE_FAILURE_CUTOFF)
+  cutoffs_failure <- compute_cutoffs(FAILURE_FOLD_CHANGE)
   cutoff_failure_upper <- cutoffs_failure$upper
   cutoff_failure_lower <- cutoffs_failure$lower
 
-  cutoffs_warning <- compute_cutoffs(RELATIVE_FOLD_CHANGE_WARNING_CUTOFF)
+  cutoffs_warning <- compute_cutoffs(WARNING_FOLD_CHANGE)
   cutoff_warning_upper <- cutoffs_warning$upper
   cutoff_warning_lower <- cutoffs_warning$lower
+  
+  cutoff_failure_at <- compute_bias_cutoff(FAILURE_AT, TRUE)
+  cutoff_failure_gc <- compute_bias_cutoff(FAILURE_GC, TRUE)
 
   gc_bias_classification_table <- get_gc_bias_classification_table(
     gc_bias_regression_table,
@@ -366,12 +397,14 @@ main <- function(
     cutoff_failure_lower,
     cutoff_warning_upper,
     cutoff_warning_lower,
+    cutoff_failure_at,
+    cutoff_failure_gc,
     relative_bias_name,
     at_bias_name,
     gc_bias_name
   )
 
-  # The file recording LOESS regression results.
+  # The file recording bias classification results.
   outfile_gc_bias_classification <- file.path(
     outdir,
     "gc_bias_loess_classification.tsv"
@@ -385,19 +418,37 @@ main <- function(
     row.names = FALSE
   )
 
-  print(gc_bias_regression_table)
-  print(gc_bias_classification_table)
   p <- plot_gc_profiles(gc_bias_regression_table, gc_bias_classification_table)
   ggsave(
-    file.path(outdir, "gc_bias_curves.png"),
+    file.path(outdir, "gc_bias_profile.png"),
     plot = p,
     height = 7.5,
     width = 10,
     units = "in"
   )
+  
+  # Draw trend visualization.
+  if(DRAW_TREND) {
+    source(file.path(BIN_FOLDER, "modules", "plot_trend_function.R"))
+    p <- plot_gc_trend(gc_bias_classification_table, SHOW_SAMPLES)
+    p_width <- ifelse(SHOW_SAMPLES, 9, 7)
+    ggsave(
+      file.path(outdir, "gc_bias_trend.png"),
+      plot = p,
+      height = 2 + nrow(gc_bias_classification_table) * 0.25,
+      width = p_width,
+      units = "in"
+    )
+  }
 }
 
 # * Functions: args ----
+find_here <- function() {
+  raw_args <- commandArgs(trailingOnly = FALSE)
+  script_path <- sub("--file=", "", raw_args[grep("--file=", raw_args)])
+  dirname(normalizePath(script_path))
+}
+
 parse_args_function <- function() {
   parser <- arg_parser(
     paste(
@@ -422,8 +473,49 @@ parse_args_function <- function() {
     help = "Probe sequence GC content tab seperated file."
   )
   parser <- add_argument(
-    parser, "--outdir",
-    help = "Pool analysis directory"
+    parser,
+    "--outdir",
+    help = "Output directory."
+  )
+  parser <- add_argument(
+    parser,
+    "--at_anchor",
+    help = "GC percentile anchor for detecting AT bias."
+  )
+  parser <- add_argument(
+    parser,
+    "--gc_anchor",
+    help = "GC percentile anchor for detecting GC bias."
+  )
+  parser <- add_argument(
+    parser,
+    "--failure_fold_change",
+    help = "Relative coverage fold change failure threshold."
+  )
+  parser <- add_argument(
+    parser,
+    "--warning_fold_change",
+    help = "Relative coverage fold change warning threshold."
+  )
+  parser <- add_argument(
+    parser,
+    "--failure_at",
+    help = "Coverage fold change failure threshold at the AT anchor."
+  )
+  parser <- add_argument(
+    parser,
+    "--failure_gc",
+    help = "Coverage fold change failure threshold at the GC anchor."
+  )
+  parser <- add_argument(
+    parser,
+    "--draw_trend",
+    help = "Generate trend visualization."
+  )
+  parser <- add_argument(
+    parser,
+    "--show_sample_names",
+    help = "Show sample names in trend visualization"
   )
   argv <- parse_args(parser)
   return(argv)
@@ -435,6 +527,15 @@ if (!interactive()) {
   bam_coverage_directory <- pluck(args, "bam_coverage_directory")
   reference_gc_content_file <- pluck(args, "reference_gc_content_file")
   outdir <- pluck(args, "outdir")
+  AT_ANCHOR <<- floor(as.numeric(pluck(args, "at_anchor")))
+  GC_ANCHOR <<- floor(as.numeric(pluck(args, "gc_anchor")))
+  FAILURE_FOLD_CHANGE <<- as.numeric(pluck(args, "failure_fold_change"))
+  WARNING_FOLD_CHANGE <<- as.numeric(pluck(args, "warning_fold_change"))
+  FAILURE_AT <<- as.numeric(pluck(args, "failure_at"))
+  FAILURE_GC <<- as.numeric(pluck(args, "failure_gc"))
+  DRAW_TREND <<- as.logical(pluck(args, "draw_trend"))
+  SHOW_SAMPLES <<- as.logical(pluck(args, "show_sample_names"))
+  BIN_FOLDER <<- find_here()
   main(
     probe_bed_file,
     bam_coverage_directory,
