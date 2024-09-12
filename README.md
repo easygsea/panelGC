@@ -92,4 +92,5 @@ For detailed usage instructions, see the [supplementary scripts documentation](s
 For support, questions, or contributions, please open an issue or a pull request in the repository or email easygsea@gmail.com
 
 # Citation
-Cheng X, Goktas MT, Williamson LM, Krzywinski M, Mulder DT, Swanson L, Slind J, Sihvonen J, Chow C, Carr A, Bosdet I, Tucker T, Young S, Moore R, Mungall KL, Yip S, Jones SJM. Enhancing clinical genomic accuracy with panelGC: a novel metric and tool for quantifying and monitoring GC biases in hybridization capture panel sequencing. 2024.
+Cheng X, Goktas MT, Williamson LM, Krzywinski M, Mulder DT, Swanson L, Slind J, Sihvonen J, Chow C, Carr A, Bosdet I, Tucker T, Young S, Moore R, Mungall KL, Yip S, Jones SJM. Enhancing clinical genomic accuracy with panelGC: a novel metric and tool for quantifying and monitoring GC biases in hybridization capture panel sequencing. Briefings in Bioinformatics. 2024 Sep;25(5):bbae442.
+https://doi.org/10.1093/bib/bbae442
