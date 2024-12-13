@@ -219,9 +219,6 @@ process generate_gc_bias {
     val draw_trend
     val show_sample_names
 
-    output:
-    path "${out_dir}/gc_bias_curves.png"
-
     script:
     """
     panelGC_main.R --probe_bed_file $probe_bed --bam_coverage_directory $intersected_coverage_dir \
