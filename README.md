@@ -7,44 +7,44 @@ panelGC effectively quantifies and monitors GC bias in hybridization capture seq
 amd64, arm64v8, ppc64le, s390x ([more info](https://github.com/docker-library/official-images#architectures-other-than-amd64))
 
 ## Dependencies
-- Nextflow (tested with 21.10.6)
 - Singularity (tested with 2.5.1)
 
-Containerized dependencies (no installation required):
-bedtools 2.30.0
-r-base 4.3.2 argparser 0.7.1 BiocManager 1.30.22 GenomicRanges 1.54.1 rtracklayer 1.62.0 tidyverse 2.0.0
-
 ## Installation
-- Install Nextflow (if not already installed): \
-Refer to official [Nextflow installation guide](https://www.nextflow.io/docs/latest/install.html)
-- Install Singularity (if not included with Nextflow): \
+- Install Singularity: \
 Refer to official [Singularity installation guide](https://docs.sylabs.io/guides/latest/user-guide/quick_start.html)
-- Clone the panelGC repository:
-```bash
-git clone https://github.com/easygsea/panelGC.git
-```
 
 ## Usage
-Run panelGC with the following command:
+### Clone Repository:
 ```bash
-nextflow run panelGC.nf \
-  --bam_directory_path /path/to/bam_files/ \
+git clone https://github.com/easygsea/panelGC.git
+cd panelGC
+```
+### Pull Singularity Image:
+```bash
+singularity pull docker://murathangoktas/panelgc:latest
+```
+### Basic Usage:
+```bash
+singularity exec \
+  -B $(pwd):/workspace panelgc_latest.sif \
+  nextflow run panelGC.nf \
+  --bam_directory_path bam_files/ \
+  --bed_file_path bed_file.bed \
+  --fasta_file_path fasta_file.fa \
+  --out_dir output_directory/
+```
+Note: `/workspace` is the working directory of the Singularity image thus you dont need to prefix data in working directory with `/workspace`.
+### Advanced Usage (Data Outside Working Directory):
+```bash
+singularity exec \
+  -B $(pwd):/workspace,<data_path>:/data panelgc_latest.sif \
+  nextflow run panelGC.nf \
+  --bam_directory_path /data/bam_files/ \
   --bed_file_path /path/to/bed_file.bed \
   --fasta_file_path /path/to/fasta_file.fa \
   --out_dir /path/to/output_directory/
 ```
-Replace the paths with your actual data directories and file paths. Adjust [parameters](https://github.com/easygsea/panelGC/tree/main?tab=readme-ov-file#parameters) as needed.
-
-Alternatively, configure parameters in a JSON or YML file (see official [Nextflow parameters guide](https://training.nextflow.io/basic_training/config/#parameters)) and excecute the following command:
-```bash
-nextflow run panelGC.nf -params-file params.json
-```
-
-**Note:** If you have limited space in your working directory or prefer to store the Singularity container in a different location, you can set the 'NXF_SINGULARITY_CACHEDIR' environment variable. This variable allows you to specify a custom path for storing Singularity images. To use this feature, export the 'NXF_SINGULARITY_CACHEDIR' variable with your desired path before running the panelGC command. For example:
-
-```bash
-export NXF_SINGULARITY_CACHEDIR=/path/to/singularity_cache/
-```
+Replace the paths with your actual mounted data directories and file paths. See [Singularity documentation](https://docs.sylabs.io/guides/2.5/user-guide/bind_paths_and_mounts.html) for more information on binding paths and mounts. 
 
 ### Parameters
 - --bam_directory_path: Path to the directory containing alignment BAM files. Indices are preferred but not mandatory. Symlinks to the BAM and index files are valid.
@@ -61,7 +61,7 @@ export NXF_SINGULARITY_CACHEDIR=/path/to/singularity_cache/
 - --show_sample_names: Boolean parameter to determine whether to sample names in trend visualization. Default: true
 
 ## Memory Requirements
-The bedtools_coverage process in panelGC is configured to use a maximum of 4 forks, as it typically requires around ~15GB per fork. It's important to note that users with less than 100GB of memory may need to decrease the number of forks, while those with more than 100GB can consider increasing it for potentially better performance.
+The bedtools_coverage process in panelGC is configured to use a maximum of 4 forks (panelGC.nf, line 130), as it typically requires around ~15GB per fork. It's important to note that users with less than 100GB of memory may need to decrease the number of forks, while those with more than 100GB can consider increasing it for potentially better performance.
 
 To modify the fork settings, adjust the maxForks parameter in the bedtools_coverage process according to your system's memory capacity.
 
@@ -78,7 +78,7 @@ The trend visualization of bias scores. Turned off by default.
 
 ## Demo Data
 
-For demo data and test run nstructions, please see [demo data documentation](demo_data/).
+For demo data and test run instructions, please see [demo data documentation](demo_data/).
 
 ## Supplementary Scripts
 
