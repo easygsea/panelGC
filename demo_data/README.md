@@ -51,10 +51,13 @@ panelGC
 
 Then execute:
 ```bash
-singularity exec \
-  -B $(pwd):/workspace panelgc_latest.sif \
-  nextflow run panelGC.nf \
-  -params-file demo_data/demo_params.json
+singularity exec -B $(pwd):/workspace panelgc_latest.sif \
+  nextflow run /workspace/panelGC.nf \
+  --bam_directory_path /workspace/demo_data \
+  --bed_file_path /workspace/demo_data/demo_probes.bed \
+  --fasta_file_path /workspace/demo_data/hg19.fa \
+  --out_dir /workspace/demo_output \
+  --draw_trend
 ```
 
 ## Example panelGC output from demo run

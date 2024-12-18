@@ -28,9 +28,3 @@ ENV NEXTFLOW_VERSION=23.04.0
 RUN curl -s https://get.nextflow.io | bash && \
     mv nextflow /usr/local/bin/ && \
     chmod 755 /usr/local/bin/nextflow
-
-# Set working directory
-WORKDIR /workspace
-
-# Entrypoint
-ENTRYPOINT ["nextflow"]

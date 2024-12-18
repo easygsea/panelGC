@@ -27,11 +27,11 @@ singularity pull docker://murathangoktas/panelgc:latest
 ```bash
 singularity exec \
   -B $(pwd):/workspace panelgc_latest.sif \
-  nextflow run panelGC.nf \
-  --bam_directory_path bam_files/ \
-  --bed_file_path bed_file.bed \
-  --fasta_file_path fasta_file.fa \
-  --out_dir output_directory/
+  nextflow run /workspace/panelGC.nf \
+  --bam_directory_path /workspace/bam_files/ \
+  --bed_file_path /workspace/bed_file.bed \
+  --fasta_file_path /workspace/fasta_file.fa \
+  --out_dir /workspace/output_directory/
 ```
 Note: `/workspace` is the working directory of the Singularity image thus you dont need to prefix data in working directory with `/workspace`.
 ### Advanced Usage (Data Outside Working Directory):
@@ -40,9 +40,9 @@ singularity exec \
   -B $(pwd):/workspace,<data_path>:/data panelgc_latest.sif \
   nextflow run panelGC.nf \
   --bam_directory_path /data/bam_files/ \
-  --bed_file_path /path/to/bed_file.bed \
-  --fasta_file_path /path/to/fasta_file.fa \
-  --out_dir /path/to/output_directory/
+  --bed_file_path /workspace/bed_file.bed \
+  --fasta_file_path /workspace/fasta_file.fa \
+  --out_dir /workspace/output_directory/
 ```
 Replace the paths with your actual mounted data directories and file paths. See [Singularity documentation](https://docs.sylabs.io/guides/2.5/user-guide/bind_paths_and_mounts.html) for more information on binding paths and mounts. 
 
