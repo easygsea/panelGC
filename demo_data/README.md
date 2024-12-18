@@ -12,8 +12,13 @@ wget --timestamping 'https://hgdownload.soe.ucsc.edu/goldenPath/hg19/bigZips/hg1
 gzip -d hg19.fa.gz
 ```
 2. Download all 11 files in [panelGC demo alignment BAM files and probe BED file](https://dx.doi.org/10.6084/m9.figshare.26232365) from figshare and move them into this demo_data/ folder.
+```bash
+wget https://figshare.com/ndownloader/articles/26232365/versions/1
+unzip 1
+rm 1
+```
 
-After preparation, your demo_data/ folder should contain the following 13 essential files:
+After preparation, your demo_data/ folder should contain the following 13 files:
 ```bash
 demo_data
 ├── demo_params.json
@@ -31,11 +36,6 @@ demo_data
 └── simulated_no_bias.bam.bai
 ```
 
-Make sure files in demo_data/ have global read permission:
-```bash
-chmod a+r *
-```
-
 ## Run panelGC on demo data
 
 Make sure you have properly [installed dependencies](https://github.com/easygsea/panelGC/tree/main?tab=readme-ov-file#installation). Go to your cloned panelGC parental folder which looks like this:
@@ -51,7 +51,10 @@ panelGC
 
 Then execute:
 ```bash
-nextflow run panelGC.nf -params-file demo_data/demo_params.json
+singularity exec \
+  -B $(pwd):/workspace panelgc_latest.sif \
+  nextflow run panelGC.nf \
+  -params-file demo_data/demo_params.json
 ```
 
 ## Example panelGC output from demo run
