@@ -33,7 +33,6 @@ singularity exec \
   --fasta_file_path /workspace/fasta_file.fa \
   --out_dir /workspace/output_directory/
 ```
-Note: `/workspace` is the working directory of the Singularity image thus you dont need to prefix data in working directory with `/workspace`.
 ### Advanced Usage (Data Outside Working Directory):
 ```bash
 singularity exec \
