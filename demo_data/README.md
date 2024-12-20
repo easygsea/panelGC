@@ -49,6 +49,11 @@ panelGC
 └── supplementary_scripts
 ```
 
+Create the demo output directory:
+```bash
+mkdir -v demo_output
+```
+
 Then execute:
 ```bash
 singularity exec -B $(pwd):/workspace /path/to/panelgc_latest.sif \
