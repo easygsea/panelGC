@@ -14,11 +14,6 @@ amd64, arm64v8, ppc64le, s390x ([more info](https://github.com/docker-library/of
 Refer to official [Singularity installation guide](https://docs.sylabs.io/guides/latest/user-guide/quick_start.html)
 
 ## Usage
-### Clone Repository:
-```bash
-git clone https://github.com/easygsea/panelGC.git
-cd panelGC
-```
 ### Pull Singularity Image:
 ```bash
 singularity pull docker://murathangoktas/panelgc:latest
@@ -26,8 +21,8 @@ singularity pull docker://murathangoktas/panelgc:latest
 ### Basic Usage:
 ```bash
 singularity exec \
-  -B $(pwd):/workspace panelgc_latest.sif \
-  nextflow run /workspace/panelGC.nf \
+  -B $(pwd):/workspace /path/to/panelgc_latest.sif \
+  nextflow run /opt/panelGC/panelGC.nf \
   --bam_directory_path /workspace/bam_files/ \
   --bed_file_path /workspace/bed_file.bed \
   --fasta_file_path /workspace/fasta_file.fa \
@@ -36,8 +31,8 @@ singularity exec \
 ### Advanced Usage (Data Outside Working Directory):
 ```bash
 singularity exec \
-  -B $(pwd):/workspace,<data_path>:/data panelgc_latest.sif \
-  nextflow run panelGC.nf \
+  -B $(pwd):/workspace,<data_path>:/data /path/to/panelgc_latest.sif \
+  nextflow run /opt/panelGC/panelGC.nf \
   --bam_directory_path /data/bam_files/ \
   --bed_file_path /workspace/bed_file.bed \
   --fasta_file_path /workspace/fasta_file.fa \

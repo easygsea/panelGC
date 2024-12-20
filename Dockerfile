@@ -5,7 +5,7 @@ FROM rocker/r-ver:4.3
 LABEL base_image="rocker/r-ver:4.3"
 LABEL version="1"
 LABEL software="panelGC"
-LABEL software.version="1.0.1"
+LABEL software.version="1.0.2"
 LABEL about.summary="An open source tool for quantifying and monitoring GC bias in sequencing panels"
 LABEL about.home="https://github.com/easygsea/panelGC"
 LABEL about.license="SPDX:GPL-3.0"
@@ -28,3 +28,9 @@ ENV NEXTFLOW_VERSION=23.04.0
 RUN curl -s https://get.nextflow.io | bash && \
     mv nextflow /usr/local/bin/ && \
     chmod 755 /usr/local/bin/nextflow
+
+# Download and install panelGC from GitHub Releases
+ENV PANELGC_VERSION=1.0.2
+RUN curl -sL https://github.com/easygsea/panelGC/archive/refs/tags/v${PANELGC_VERSION}.tar.gz | tar xz && \
+    mv panelGC-${PANELGC_VERSION} /opt/panelGC && \
+    chmod -R 755 /opt/panelGC

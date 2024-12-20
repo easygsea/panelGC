@@ -51,8 +51,8 @@ panelGC
 
 Then execute:
 ```bash
-singularity exec -B $(pwd):/workspace panelgc_latest.sif \
-  nextflow run /workspace/panelGC.nf \
+singularity exec -B $(pwd):/workspace /path/to/panelgc_latest.sif \
+  nextflow run /opt/panelGC/panelGC.nf \
   --bam_directory_path /workspace/demo_data \
   --bed_file_path /workspace/demo_data/demo_probes.bed \
   --fasta_file_path /workspace/demo_data/hg19.fa \
