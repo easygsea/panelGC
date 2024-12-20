@@ -9,6 +9,11 @@ amd64, arm64v8, ppc64le, s390x ([more info](https://github.com/docker-library/of
 ## Dependencies
 - Singularity (tested with 2.5.1)
 
+Containerized dependencies (no installation required):
+Nextflow 23.04.0
+bedtools 2.30.0
+r-base 4.3.2 argparser 0.7.1 BiocManager 1.30.22 GenomicRanges 1.54.1 rtracklayer 1.62.0 tidyverse 2.0.0
+
 ## Installation
 - Install Singularity: \
 Refer to official [Singularity installation guide](https://docs.sylabs.io/guides/latest/user-guide/quick_start.html)
