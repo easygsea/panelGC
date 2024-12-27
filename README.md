@@ -45,12 +45,15 @@ singularity exec \
 ```
 Replace the paths with your actual mounted data directories and file paths. See [Singularity documentation](https://docs.sylabs.io/guides/2.5/user-guide/bind_paths_and_mounts.html) for more information on binding paths and mounts. 
 
-**Note:** `singularity exec` and `nextflow` provide additional options to help optimize the deployment of panelGC for your specific use. For more details, please refer to the official guides: [singularity exec](https://docs.sylabs.io/guides/latest/user-guide/cli/singularity_exec.html) and [nextflow CLI reference](https://www.nextflow.io/docs/latest/reference/cli.html#options).
+**Note:** `singularity exec` and `nextflow` provide additional options to help optimizeity the deployment of panelGC for your specific use. For more details, please refer to the official guides: [singularity exec](https://docs.sylabs.io/guides/latest/user-guide/cli/singularity_exec.html) and [nextflow CLI reference](https://www.nextflow.io/docs/latest/reference/cli.html#options).
 
 ### Parameters
 - --bam_directory_path: Path to the directory containing alignment BAM files. Indices are preferred but not mandatory. Symlinks to the BAM and index files are valid.
 - --bed_file_path: Path to the genomic bins (or probes) BED file.
 - --fasta_file_path: Path to the genome FASTA file.
+- --sample_labels_csv_path: Path to a CSV file containing sample labels, optional. SSupplying this file allows you to differentiate line types for different labels in the `gc_bias_profile.png` output. The file should have two columns:
+  - sample: Sample names matching the BAM file names.
+  - \<label>: A column for your labels with "true" or "false" values.
 - --out_dir: Path to the output directory.
 - --at_anchor: GC percentile anchor for detecting AT bias. Should be > 0 and < 50. Default: 25
 - --gc_anchor: GC percentile anchor for detecting GC bias. Should be > 50 and < 100. Default: 75
@@ -73,7 +76,7 @@ Records LOESS depth per GC percentile per sample.
 2. gc_bias_loess_classification.tsv:
 Records b<sub>25</sub>, b<sub>75</sub> and b<sub>75/25</sub> scores, and bias classification per sample.
 3. gc_bias_profile.png:
-The GC bias profile plot.
+The GC bias profile plot. Use the `--sample_labels_csv_path` argument to assign labels and differentiate line types for samples.
 4. gc_bias_trend.png (optional):
 The trend visualization of bias scores. Turned off by default.
 
