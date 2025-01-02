@@ -51,7 +51,7 @@ Replace the paths with your actual mounted data directories and file paths. See 
 - --bam_directory_path: Path to the directory containing alignment BAM files. Indices are preferred but not mandatory. Symlinks to the BAM and index files are valid.
 - --bed_file_path: Path to the genomic bins (or probes) BED file.
 - --fasta_file_path: Path to the genome FASTA file.
-- --sample_labels_csv_path: Path to a CSV file containing sample labels, optional. SSupplying this file allows you to differentiate line types for different labels in the `gc_bias_profile.png` output. The file should have two columns:
+- --sample_labels_csv_path: Path to a CSV file containing sample labels, optional. Supplying this file allows you to differentiate line types for different labels in the `gc_bias_profile.png` output. The file should have two columns:
   - sample: Sample names matching the BAM file names.
   - \<label>: A column for your labels with "true" or "false" values.
 - --out_dir: Path to the output directory.
