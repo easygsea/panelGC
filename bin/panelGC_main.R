@@ -18,6 +18,20 @@ BIAS_COLORS <- c(
   "no bias" = "darkgrey"
 )
 
+read_sample_labels_csv <- function(file_path) {
+  sample_labels <- read_csv(
+    file_path,
+    col_names = TRUE,
+    col_types = cols(
+      .default = col_character()
+    )
+  )
+  if(colnames(sample_labels)[1] != "sample"){
+    stop("First column must be named 'sample' in sample_labels_csv.")
+  }
+  return(sample_labels)
+}
+
 read_coverage_files_and_create_tibbles <- function(
     directory_path,
     file_pattern) {
@@ -291,11 +305,24 @@ calculate_gc_bias_loess <- function(
   return(gc_bias_loess)
 }
 
-plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification) {
+plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_labels) {
+  label <- NULL
+  gc_bias_regression_w_labels <- gc_bias_regression
+  # Check if sample_labels file is provided by the user
+  if (!is.null(sample_labels)) {
+    # Second column name is the label
+    label <- colnames(sample_labels)[2]
+    gc_bias_regression_w_labels <- gc_bias_regression %>%
+      left_join(
+        sample_labels,
+        by = "sample"
+      )
+  }
+
   # Maximum of y-axis.
   y_max <- ceiling(max(pull(gc_bias_regression, normalized_depth)))
   # Generate sample GC profiles plot.
-  p <- gc_bias_regression %>%
+  base_plot <- gc_bias_regression_w_labels %>%
     left_join(
       select(
         gc_bias_classification,
@@ -303,10 +330,20 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification) {
       ),
       by = "sample", multiple = "all"
     ) %>%
-    ggplot(aes(x = gc_percentile, y = normalized_depth, color = bias_type)) +
-    geom_smooth(aes(group = sample),
-      method = "loess", formula = y ~ x, se = FALSE, fullrange = TRUE
-    ) +
+    ggplot(aes(x = gc_percentile, y = normalized_depth, color = bias_type))
+
+  # Conditionally add the geom_smooth layer
+  if (!is.null(label)) {
+    geom_smooth_layer <- geom_smooth(aes(group = sample, linetype = .data[[label]]),
+                                     method = "loess", formula = y ~ x, se = FALSE, fullrange = TRUE)
+  } else {
+    geom_smooth_layer <- geom_smooth(aes(group = sample),
+                                     method = "loess", formula = y ~ x, se = FALSE, fullrange = TRUE)
+  }
+
+  # Add the rest of the layers
+  p <- base_plot +
+    geom_smooth_layer +
     scale_y_continuous("LOESS Depth Per GC Percentile") +
     ggtitle("GC Content vs. Coverage by Sample") +
     coord_cartesian(xlim = c(0.0, 1.0), ylim = c(0, y_max)) +
@@ -314,6 +351,7 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification) {
     scale_color_manual(name = "Bias Type", values = BIAS_COLORS) +
     theme_bw(base_size = 20) +
     theme(legend.position = "right")
+
   return(p)
 }
 
@@ -321,6 +359,7 @@ main <- function(
     probe_bed_file,
     bam_coverage_directory,
     reference_gc_content_file,
+    sample_labels_csv,
     outdir) {
   # Set variable names.
   relative_bias_name <- str_glue("bias_{AT_ANCHOR}vs{GC_ANCHOR}")
@@ -342,6 +381,14 @@ main <- function(
       "end_pos" = "probe_end_pos"
     )
   )
+
+  ## Read sample types if provided
+  sample_labels <- if (sample_labels_csv != "NA") {
+    read_sample_labels_csv(sample_labels_csv)
+  } else {
+    NULL
+  }
+
   ## Read coverage data for each sample.
   raw_coverage_tibbles <- read_coverage_files_and_create_tibbles(
     bam_coverage_directory,
@@ -418,7 +465,7 @@ main <- function(
     row.names = FALSE
   )
 
-  p <- plot_gc_profiles(gc_bias_regression_table, gc_bias_classification_table)
+  p <- plot_gc_profiles(gc_bias_regression_table, gc_bias_classification_table, sample_labels)
   ggsave(
     file.path(outdir, "gc_bias_profile.png"),
     plot = p,
@@ -457,6 +504,7 @@ parse_args_function <- function() {
       "Usage = generate_gc_biases.R --probe_bed_file <probe_bed_file>",
       "--bam_coverage_directory <bam_coverage_directory>",
       "--reference_gc_content_file <reference_gc_content_file>",
+      "--sample_labels_csv <sample_labels_csv>",
       "--outdir <outdir>"
     )
   )
@@ -471,6 +519,12 @@ parse_args_function <- function() {
     parser,
     "--reference_gc_content_file",
     help = "Probe sequence GC content tab seperated file."
+  )
+  parser <- add_argument(
+    parser,
+    "--sample_labels_csv",
+    help = "Sample labels csv for grouping by line type in 'gc_bias_profile.png', optional",
+    default = "NA"
   )
   parser <- add_argument(
     parser,
@@ -526,6 +580,7 @@ if (!interactive()) {
   probe_bed_file <- pluck(args, "probe_bed_file")
   bam_coverage_directory <- pluck(args, "bam_coverage_directory")
   reference_gc_content_file <- pluck(args, "reference_gc_content_file")
+  sample_labels_csv <- pluck(args, "sample_labels_csv")
   outdir <- pluck(args, "outdir")
   AT_ANCHOR <<- floor(as.numeric(pluck(args, "at_anchor")))
   GC_ANCHOR <<- floor(as.numeric(pluck(args, "gc_anchor")))
@@ -540,6 +595,7 @@ if (!interactive()) {
     probe_bed_file,
     bam_coverage_directory,
     reference_gc_content_file,
+    sample_labels_csv,
     outdir
   )
 }

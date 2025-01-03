@@ -34,6 +34,21 @@ if (!params.fasta_file_path || !new File(params.fasta_file_path).exists()) {
     Please ensure the genome FASTA file exists.
     """
 }
+if (params.sample_labels_csv_path && !new File(params.sample_labels_csv_path).exists()) {
+    exit 1, """
+    Error: Incorrect path for --sample_labels_csv_path parameter.
+    Please ensure the provided csv file exists.
+    """
+}
+if (!params.sample_labels_csv_path) {
+    /*
+    Nextflow doesnt support optional inputs. However 'sample_labels_csv_path' is meant to
+    be an optional input. Thus when user doesnt provide this we create an empty file with
+    a pre-defined name and later exclude it when building the command.
+    */
+    def noFile = file("NO_FILE")
+    params.sample_labels_csv_path = noFile
+}
 if (!params.out_dir || !new File(params.out_dir).exists()) {
     exit 1, """
     Error: Missing or incorrect path for --out_dir parameter.
@@ -209,6 +224,7 @@ process generate_gc_bias {
     path probe_bed
     path intersected_coverage_dir
     path gc_content_summary
+    path sample_labels_csv
     path out_dir
     val at_anchor
     val gc_anchor
@@ -222,8 +238,9 @@ process generate_gc_bias {
     script:
     """
     panelGC_main.R --probe_bed_file $probe_bed --bam_coverage_directory $intersected_coverage_dir \
-    --reference_gc_content_file $gc_content_summary --outdir $out_dir \
-    --at_anchor $at_anchor --gc_anchor $gc_anchor \
+    --reference_gc_content_file $gc_content_summary \
+    ${sample_labels_csv.name == "NO_FILE" ? "" : "--sample_labels_csv $sample_labels_csv"} \
+    --outdir $out_dir --at_anchor $at_anchor --gc_anchor $gc_anchor \
     --failure_fold_change $failure_fold_change --warning_fold_change $warning_fold_change \
     --failure_at $failure_at --failure_gc $failure_gc \
     --draw_trend $draw_trend --show_sample_names $show_sample_names
@@ -244,6 +261,7 @@ workflow {
 		probe_bed,
 		create_soft_links(coverage_files.collect()),
 		gc_content_summary,
+		params.sample_labels_csv_path,
 		file(params.out_dir),
         params.at_anchor,
         params.gc_anchor,

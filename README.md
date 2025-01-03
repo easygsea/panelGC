@@ -10,7 +10,7 @@ amd64, arm64v8, ppc64le, s390x ([more info](https://github.com/docker-library/of
 - Singularity (tested with 2.5.1)
 
 Containerized dependencies (no installation required):
-Nextflow 24.10.2
+Nextflow 24.10.0
 bedtools 2.30.0
 r-base 4.3.2 argparser 0.7.1 BiocManager 1.30.22 GenomicRanges 1.54.1 rtracklayer 1.62.0 tidyverse 2.0.0
 
@@ -51,6 +51,9 @@ Replace the paths with your actual mounted data directories and file paths. See 
 - --bam_directory_path: Path to the directory containing alignment BAM files. Indices are preferred but not mandatory. Symlinks to the BAM and index files are valid.
 - --bed_file_path: Path to the genomic bins (or probes) BED file.
 - --fasta_file_path: Path to the genome FASTA file.
+- --sample_labels_csv_path: Path to a CSV file containing sample labels, optional. Supplying this file allows you to differentiate line types for different labels in the `gc_bias_profile.png` output. The file should have two columns:
+  - sample: Sample names matching the BAM file names.
+  - \<label>: A column for your labels with "True" or "False" values.
 - --out_dir: Path to the output directory.
 - --at_anchor: GC percentile anchor for detecting AT bias. Should be > 0 and < 50. Default: 25
 - --gc_anchor: GC percentile anchor for detecting GC bias. Should be > 50 and < 100. Default: 75
@@ -73,7 +76,7 @@ Records LOESS depth per GC percentile per sample.
 2. gc_bias_loess_classification.tsv:
 Records b<sub>25</sub>, b<sub>75</sub> and b<sub>75/25</sub> scores, and bias classification per sample.
 3. gc_bias_profile.png:
-The GC bias profile plot.
+The GC bias profile plot. Use the `--sample_labels_csv_path` argument to assign labels and differentiate line types for samples.
 4. gc_bias_trend.png (optional):
 The trend visualization of bias scores. Turned off by default.
 

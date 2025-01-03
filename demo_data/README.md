@@ -24,6 +24,7 @@ demo_data
 ├── demo_params.json
 ├── demo_probes.bed
 ├── hg19.fa
+├── sample_types.csv
 ├── simulated_at_bias_high.bam
 ├── simulated_at_bias_high.bam.bai
 ├── simulated_at_bias_medium.bam
@@ -61,6 +62,7 @@ singularity exec -B $(pwd):/workspace /path/to/panelgc_latest.sif \
   --bam_directory_path /workspace/demo_data \
   --bed_file_path /workspace/demo_data/demo_probes.bed \
   --fasta_file_path /workspace/demo_data/hg19.fa \
+  --sample_labels_csv_path /workspace/demo_data/sample_types.csv \
   --out_dir /workspace/demo_output \
   --draw_trend
 ```
