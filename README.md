@@ -21,7 +21,7 @@ Refer to official [Singularity installation guide](https://docs.sylabs.io/guides
 ## Usage
 ### Pull Singularity Image:
 ```bash
-singularity pull docker://murathangoktas/panelgc:latest
+singularity pull docker://quay.io/easygsea/panelgc:latest
 ```
 ### Basic Usage:
 ```bash
