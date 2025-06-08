@@ -1,8 +1,7 @@
 #! /usr/bin/env Rscript
 suppressPackageStartupMessages({
   library(argparser)
-  library(GenomicRanges)
-  library(rtracklayer)
+  library(data.table)
   library(tidyverse)
 })
 
@@ -19,11 +18,10 @@ BIAS_COLORS <- c(
 )
 
 read_sample_labels_csv <- function(file_path) {
-  sample_labels <- read_csv(
+  sample_labels <- fread(
     file_path,
-    col_names = TRUE,
-    col_types = cols(
-      .default = col_character()
+    colClasses = list(
+      character = names(fread(file_path, nrows = 0))
     )
   )
   if(colnames(sample_labels)[1] != "sample"){
@@ -50,26 +48,20 @@ read_coverage_files_and_create_tibbles <- function(
     # Extract the base name of the file (without path and extension)
     file_name <- tools::file_path_sans_ext(basename(file_path))
 
-    # Read the file into a tibble
-    tibble_data <- read_tsv(file_path,
-      col_names = c(
+    # Read the file using data.table
+    tibble_data <- fread(file_path,
+      col.names = c(
         "chromosome",
-        "region_start_pos",
+        "region_start_pos", 
         "region_end_pos",
         "window_position",
         "depth"
       ),
-      col_types = cols(
-        chromosome = col_character(),
-        region_start_pos = col_double(),
-        region_end_pos = col_double(),
-        window_position = col_double(),
-        depth = col_double()
+      colClasses = list(
+        character = "chromosome",
+        numeric = c("region_start_pos", "region_end_pos", "window_position", "depth")
       )
-    ) %>%
-    mutate(
-      region = as.character(str_glue("{chromosome}:{region_start_pos}-{region_end_pos}"))
-    )
+    )[, region := sprintf("%s:%d-%d", chromosome, region_start_pos, region_end_pos)]
 
     # Assign the tibble to the list with the name as the key
     tibbles_list[[file_name]] <- tibble_data
@@ -79,15 +71,12 @@ read_coverage_files_and_create_tibbles <- function(
 }
 
 read_gc_content_file <- function(file_path) {
-  # Read the TSV file
-  data <- read_tsv(
+  # Read the TSV file using data.table
+  data <- fread(
     file_path,
-    col_types = cols(
-      region = col_character(),
-      region_name = col_character(),
-      window_start = col_double(),
-      window_end = col_double(),
-      GC = col_double()
+    colClasses = list(
+      character = c("region", "region_name"),
+      numeric = c("window_start", "window_end", "GC")
     )
   )
   return(data)
@@ -109,49 +98,49 @@ calculate_gc_bias_regression <- function(bin_gc_summary) {
 get_gc_bias_regression_table <- function(
     raw_bam_readcount_intersected_probes,
     gc_content) {
-  mean_sample_depths <- raw_bam_readcount_intersected_probes %>%
-    mutate(position = region_start_pos + window_position - 1) %>%
-    select(sample, chromosome, position, depth) %>%
-    distinct() %>%
-    group_by(sample) %>%
-    summarise(mean_depth = mean(depth))
+  # Calculate mean depths.
+  mean_sample_depths <- raw_bam_readcount_intersected_probes[
+    , position := region_start_pos + window_position - 1
+  ][
+    , .(sample, chromosome, position, depth)
+  ][
+    , .SD[1], by = .(sample, chromosome, position)
+  ][
+    , .(mean_depth = mean(depth)), by = sample
+  ]
 
-  # Expand rows to include all bases from window_start to window_end.
-  gc_content <- gc_content %>%
-    rowwise() %>%
-    mutate(window_position = list(seq(window_start, window_end))) %>%
-    unnest(window_position) %>%
-    ungroup()
+  # Expand GC content windows and join with read depth data.
+  gc_summary <- gc_content[
+    , .(window_position = seq.int(window_start, window_end)),
+    by = .(region, region_name, window_start, window_end, GC)
+  ][
+    raw_bam_readcount_intersected_probes,
+    on = c("region", "window_position"),
+    mult = "all",
+    nomatch = 0  # Skip rows with no matches
+  ][
+    , .(depth_median = median(depth, na.rm = TRUE)),
+    by = .(region, region_name, window_start, window_end, GC, sample)
+  ]
 
-  # Compute the median depth of each probe (genomic bin) or sliding window per sample.
-  gc_summary <- gc_content %>%
-    left_join(
-      raw_bam_readcount_intersected_probes,
-      by = c("region", "window_position"),
-      relationship = "many-to-many"
-    ) %>%
-    distinct() %>%
-    # Compute the median depth of each probe (genomic bin) or sliding window per sample.
-    group_by(region, region_name, window_start, window_end, GC, sample) %>%
-    summarise(depth_median = median(depth, na.rm = TRUE))
+  # Calculate GC percentiles and median depths.
+  bin_gc_summary <- gc_summary[
+    , .(depth_median_median = median(depth_median, na.rm = TRUE)),
+    by = .(sample, gc_percentile = floor(GC * 100) / 100)
+  ]
 
-  # Compute the median depth across probes (genomic bins) or sliding windows with the same GC content.
-  bin_gc_summary <- gc_summary %>%
-    group_by(sample) %>%
-    mutate(gc_percentile = floor(GC * 100) / 100) %>%
-    group_by(sample, gc_percentile) %>%
-    summarise(depth_median_median = median(depth_median, na.rm = TRUE))
+  # Join with mean depths and calculate normalized depth
+  bin_gc_summary <- bin_gc_summary[
+    mean_sample_depths,
+    on = "sample"
+  ][
+    , normalized_depth := log2(depth_median_median / mean_depth + 1)
+  ]
 
-  # Normalization by mean sample depth.
-  bin_gc_summary <- left_join(
-    bin_gc_summary, mean_sample_depths,
-    by = "sample"
-  ) %>%
-    mutate(normalized_depth = log2(
-      depth_median_median / mean_depth + 1
-    ))
-
-  gc_bias_regression <- calculate_gc_bias_regression(bin_gc_summary)
+  # Convert back to data.frame for final regression calculation
+  gc_bias_regression <- calculate_gc_bias_regression(as.data.frame(bin_gc_summary))
+  
+  return(gc_bias_regression)
 }
 
 compute_bias_cutoff <- function(fold_change_cutoff, is_upper) {
