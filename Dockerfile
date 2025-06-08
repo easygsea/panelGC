@@ -40,5 +40,4 @@ RUN curl -sL "https://github.com/samtools/htslib/releases/download/${HTSLIB_VERS
     rm -rf htslib-* samtools-*
 
 # R packages
-RUN install2.r --error BiocManager argparser tidyverse data.table
-RUN Rscript -e 'requireNamespace("BiocManager"); BiocManager::install("GenomicRanges"); BiocManager::install("rtracklayer")'
+RUN install2.r --error argparser tidyverse data.table
