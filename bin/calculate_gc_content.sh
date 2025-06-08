@@ -6,8 +6,8 @@ output_gc_content=$3
 
 awk -F'\t' -v window_size=$window_size 'BEGIN {OFS="\t"; print "region\tregion_name\twindow_start\twindow_end\tGC"} \
   {
-    region = $1
-    region_name = $2
+    region_name = $1
+    region = $2
     seq = toupper($3)
     seq_len = length(seq)
 
