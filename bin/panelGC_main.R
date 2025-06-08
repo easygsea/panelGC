@@ -83,15 +83,17 @@ read_gc_content_file <- function(file_path) {
 }
 
 calculate_gc_bias_regression <- function(bin_gc_summary) {
-  gc_bias_regression <- bin_gc_summary %>%
-    group_by(sample) %>%
-    arrange(sample, gc_percentile) %>%
-    nest() %>%
-    mutate(loess_depth = purrr::map(data, function(x) {
-      stats::loess(normalized_depth ~ gc_percentile, span = 0.75, data = x) %>%
-        stats::predict(gc_percentile = unique(gc_percentile))
-    })) %>%
-    unnest(cols = c(data, loess_depth))
+  # Calculate LOESS regression for each sample
+  gc_bias_regression <- bin_gc_summary[, {
+    setorder(.SD, gc_percentile)
+    loess_model <- stats::loess(normalized_depth ~ gc_percentile,
+                               span = 0.75, 
+                               data = .SD)
+    loess_depth <- stats::predict(loess_model,
+                                 newdata = data.frame(gc_percentile = unique(gc_percentile)))
+    cbind(.SD, loess_depth)
+  }, by = sample]
+
   return(gc_bias_regression)
 }
 
@@ -138,8 +140,7 @@ get_gc_bias_regression_table <- function(
     , normalized_depth := log2(depth_median_median / mean_depth + 1)
   ]
 
-  # Convert back to data.frame for final regression calculation
-  gc_bias_regression <- calculate_gc_bias_regression(as.data.frame(bin_gc_summary))
+  gc_bias_regression <- calculate_gc_bias_regression(bin_gc_summary)
   
   return(gc_bias_regression)
 }
