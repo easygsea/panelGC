@@ -117,7 +117,8 @@ get_gc_bias_regression_table <- function(
     raw_bam_readcount_intersected_probes,
     on = c("region", "window_position"),
     mult = "all",
-    nomatch = 0  # Skip rows with no matches
+    nomatch = 0,  # Skip rows with no matches
+    allow.cartesian = TRUE  # Allow cartesian join to handle multiple matches
   ][
     , .(depth_median = median(depth, na.rm = TRUE)),
     by = .(region, region_name, window_start, window_end, GC, sample)
