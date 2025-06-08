@@ -361,6 +361,11 @@ main <- function(
     reference_gc_content_file,
     sample_labels_csv,
     outdir) {
+  # Create output directory if it doesn't exist
+  if (!dir.exists(outdir)) {
+    dir.create(outdir, recursive = TRUE)
+  }
+
   # Set variable names.
   relative_bias_name <- str_glue("bias_{AT_ANCHOR}vs{GC_ANCHOR}")
   at_bias_name <- str_glue("bias_{AT_ANCHOR}")
@@ -383,7 +388,7 @@ main <- function(
   )
 
   ## Read sample types if provided
-  sample_labels <- if (sample_labels_csv != "NA") {
+  sample_labels <- if (sample_labels_csv != "NO_FILE") {
     read_sample_labels_csv(sample_labels_csv)
   } else {
     NULL

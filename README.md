@@ -7,45 +7,34 @@ panelGC effectively quantifies and monitors GC bias in hybridization capture seq
 amd64, arm64v8, ppc64le, s390x ([more info](https://github.com/docker-library/official-images#architectures-other-than-amd64))
 
 ## Dependencies
-- Singularity (tested with 2.5.1)
+- Apptainer (tested with 1.3.1)
+- Nextflow (tested with 24.10.3)
 
 Containerized dependencies (no installation required):
-Nextflow 24.10.0
 bedtools 2.30.0
 r-base 4.3.2 argparser 0.7.1 BiocManager 1.30.22 GenomicRanges 1.54.1 rtracklayer 1.62.0 tidyverse 2.0.0
 
 ## Installation
-- Install Singularity: \
-Refer to official [Singularity installation guide](https://docs.sylabs.io/guides/latest/user-guide/quick_start.html)
+- Install Apptainer: \
+Refer to official [Apptainer installation guide](https://apptainer.org/docs/user/main/quick_start.html)
+- Install Nextflow: \
+Refer to official [Nextflow installation guide](https://www.nextflow.io/docs/latest/getstarted.html)
 
 ## Usage
-### Pull Singularity Image:
+### Pull panelGC repository:
 ```bash
-singularity pull docker://quay.io/easygsea/panelgc:latest
+git clone https://github.com/easygsea/panelGC.git
 ```
-### Basic Usage:
+### Run panelGC:
 ```bash
-singularity exec \
-  -B $(pwd):/workspace /path/to/panelgc_latest.sif \
-  nextflow run /opt/panelGC/panelGC.nf \
+nextflow run /path/to/panelGC/panelGC.nf \
   --bam_directory_path /workspace/bam_files/ \
   --bed_file_path /workspace/bed_file.bed \
   --fasta_file_path /workspace/fasta_file.fa \
   --out_dir /workspace/output_directory/
 ```
-### Advanced Usage (Data Outside Working Directory):
-```bash
-singularity exec \
-  -B $(pwd):/workspace,<data_path>:/data /path/to/panelgc_latest.sif \
-  nextflow run /opt/panelGC/panelGC.nf \
-  --bam_directory_path /data/bam_files/ \
-  --bed_file_path /workspace/bed_file.bed \
-  --fasta_file_path /workspace/fasta_file.fa \
-  --out_dir /workspace/output_directory/
-```
-Replace the paths with your actual mounted data directories and file paths. See [Singularity documentation](https://docs.sylabs.io/guides/2.5/user-guide/bind_paths_and_mounts.html) for more information on binding paths and mounts. 
 
-**Note:** `singularity exec` and `nextflow` provide additional options to help optimize the deployment of panelGC for your specific use. For more details, please refer to the official guides: [singularity exec](https://docs.sylabs.io/guides/latest/user-guide/cli/singularity_exec.html) and [nextflow CLI reference](https://www.nextflow.io/docs/latest/reference/cli.html#options).
+**Note:** `nextflow` provides additional options to help optimize the deployment of panelGC for your specific use. For more details, please refer to the official guides: [nextflow CLI reference](https://www.nextflow.io/docs/latest/reference/cli.html#options).
 
 ### Parameters
 - --bam_directory_path: Path to the directory containing alignment BAM files. Indices are preferred but not mandatory. Symlinks to the BAM and index files are valid.
@@ -63,6 +52,7 @@ Replace the paths with your actual mounted data directories and file paths. See 
 - --failure_gc: Coverage fold change failure threshold at the GC anchor. Should be > 0. Default: 1.5
 - --draw_trend: Boolean parameter to determine whether to generate trend visualization. Default: false
 - --show_sample_names: Boolean parameter to determine whether to sample names in trend visualization. Default: true
+- --publish_bam_files: Boolean parameter to determine whether to publish converted BAM files in the output directory when input files are in CRAM format. Default: false
 
 ## Memory Requirements
 The bedtools_coverage process in panelGC is configured to use a maximum of 4 forks (panelGC.nf, line 130), as it typically requires around ~15GB per fork. It's important to note that users with less than 100GB of memory may need to decrease the number of forks, while those with more than 100GB can consider increasing it for potentially better performance.

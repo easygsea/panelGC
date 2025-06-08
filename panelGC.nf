@@ -2,18 +2,6 @@
 
 nextflow.enable.dsl=2
 
-params.bam_directory_path = ''
-params.bed_file_path = ''
-params.fasta_file_path = ''
-params.out_dir = ''
-params.at_anchor = 25
-params.gc_anchor = 75
-params.failure_fold_change = 2
-params.warning_fold_change = 1.5
-params.failure_at = 1.5
-params.failure_gc = 1.5
-params.draw_trend = false
-params.show_sample_names = true
 
 // Check if the paths are not empty and the files exist
 if (!params.bam_directory_path || !new File(params.bam_directory_path).exists()) {
@@ -34,31 +22,16 @@ if (!params.fasta_file_path || !new File(params.fasta_file_path).exists()) {
     Please ensure the genome FASTA file exists.
     """
 }
-if (params.sample_labels_csv_path && !new File(params.sample_labels_csv_path).exists()) {
+if (params.sample_labels_csv_path != "NO_FILE" && !new File(params.sample_labels_csv_path).exists()) {
     exit 1, """
     Error: Incorrect path for --sample_labels_csv_path parameter.
     Please ensure the provided csv file exists.
     """
 }
-if (!params.sample_labels_csv_path) {
-    /*
-    Nextflow doesnt support optional inputs. However 'sample_labels_csv_path' is meant to
-    be an optional input. Thus when user doesnt provide this we create an empty file with
-    a pre-defined name and later exclude it when building the command.
-    */
-    def noFile = file("NO_FILE")
-    params.sample_labels_csv_path = noFile
-}
-if (!params.out_dir || !new File(params.out_dir).exists()) {
+// Check if the BAM directory contains any .bam or .cram files
+if (!new File(params.bam_directory_path).list().any { it.endsWith('.bam') || it.endsWith('.cram') }) {
     exit 1, """
-    Error: Missing or incorrect path for --out_dir parameter.
-    Please ensure the output directory exists.
-    """
-}
-// Check if the BAM directory contains any .bam files
-if (!new File(params.bam_directory_path).list().any { it.endsWith('.bam') }) {
-    exit 1, """
-    Error: No .bam files found in the input BAM directory.
+    Error: No .bam or .cram files found in the input BAM directory.
     Please verify the path and content for --bam_directory_path.
     """
 }
@@ -119,25 +92,31 @@ probe_bed = file(params.bed_file_path)
 
 // Extract library names and pair with files
 bam_channel = Channel
-                .fromPath("${params.bam_directory_path}/*.bam")
+                .fromPath("${params.bam_directory_path}/*.{bam,cram}")
                 .map { file -> 
-                    def libraryName = file.getName().replace(".bam", "")
-                    return tuple(libraryName, file) 
+                    def libraryName = file.getName().replaceAll(/\.(bam|cram)$/, "")
+                    return tuple(libraryName, file)
                 }
 
-process bedtools_intersect {
+process convert_cram_to_bam {
+    maxForks 4
+    publishDir "${params.out_dir}/bam_files", mode: 'copy', enabled: params.publish_bam_files
     /*
-     * Run bedtools intersect
+     * Run samtools view to convert CRAM to BAM
      */
     input:
     tuple val(library_id), path(input_bam)
 
     output:
-    tuple val(library_id), path ("${library_id}_intersected.bam")
+    tuple val(library_id), path ("${library_id}_converted.bam")
 
     script:
     """
-    bedtools intersect -a $input_bam -b $probe_bed > ${library_id}_intersected.bam
+    if [[ $input_bam == *.cram ]]; then
+        samtools view -b -o ${library_id}_converted.bam $input_bam
+    else
+        ln -s $input_bam ${library_id}_converted.bam
+    fi
     """
 }
 
@@ -146,9 +125,10 @@ process bedtools_coverage {
     /*
      * Run bedtools coverage
      */
+    publishDir "${params.out_dir}/coverage", mode: 'copy'
 
     input:
-    tuple val(library_id), path(intersected_bam)
+    tuple val(library_id), path(converted_bam)
 
     output:
     path("${library_id}_intersected_coverage.bed")
@@ -156,7 +136,7 @@ process bedtools_coverage {
     script:
     """
     cut -f1-3 $probe_bed >> only_required_columns.bed
-    bedtools coverage -d -a only_required_columns.bed -b $intersected_bam > ${library_id}_intersected_coverage.bed
+    bedtools coverage -d -a only_required_columns.bed -b $converted_bam > ${library_id}_intersected_coverage.bed
     """
 }
 
@@ -169,11 +149,12 @@ process bedtools_getfasta {
     path reference_fasta
 
     output:
-    path "extracted_sequences.fasta"
+    path "extracted_sequences.txt"
 
     script:
     """
-    bedtools getfasta -fi $reference_fasta -bed $probe_bed -fo extracted_sequences.fasta
+    bedtools getfasta -tab -fi $reference_fasta -bed $probe_bed -fo extracted_sequences
+    paste <(cut -f4 $probe_bed) extracted_sequences > extracted_sequences.txt
     """
 }
 
@@ -181,6 +162,8 @@ process calculate_gc_content {
     /*
      * Run helper bash script to create GC content.
      */
+    publishDir "${params.out_dir}/gc_content", mode: 'copy'
+
     input:
     path input_extracted_sequences
 
@@ -217,6 +200,7 @@ process create_soft_links {
 }
 
 process generate_gc_bias {
+    publishDir "${params.out_dir}/", mode: 'copy'
     /*
      * Run panelGC_main.R executable
      */
@@ -235,11 +219,14 @@ process generate_gc_bias {
     val draw_trend
     val show_sample_names
 
+    output:
+    path "${out_dir}/*", emit: panelGC_results
+
     script:
     """
     panelGC_main.R --probe_bed_file $probe_bed --bam_coverage_directory $intersected_coverage_dir \
     --reference_gc_content_file $gc_content_summary \
-    ${sample_labels_csv.name == "NO_FILE" ? "" : "--sample_labels_csv $sample_labels_csv"} \
+    --sample_labels_csv $sample_labels_csv \
     --outdir $out_dir --at_anchor $at_anchor --gc_anchor $gc_anchor \
     --failure_fold_change $failure_fold_change --warning_fold_change $warning_fold_change \
     --failure_at $failure_at --failure_gc $failure_gc \
@@ -249,7 +236,7 @@ process generate_gc_bias {
 
 workflow {
     coverage_files = bam_channel
-    			| bedtools_intersect
+    			| convert_cram_to_bam
     			| bedtools_coverage
     
    
@@ -261,7 +248,7 @@ workflow {
 		probe_bed,
 		create_soft_links(coverage_files.collect()),
 		gc_content_summary,
-		params.sample_labels_csv_path,
+		file(params.sample_labels_csv_path),
 		file(params.out_dir),
         params.at_anchor,
         params.gc_anchor,
