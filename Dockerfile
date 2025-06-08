@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean
 
 # Install HTSlib and samtools
-ENV HTSLIB_VERSION=1.19
+ENV HTSLIB_VERSION=1.22
 RUN curl -sL "https://github.com/samtools/htslib/releases/download/${HTSLIB_VERSION}/htslib-${HTSLIB_VERSION}.tar.bz2" -o "htslib-${HTSLIB_VERSION}.tar.bz2" && \
     tar -xjf "htslib-${HTSLIB_VERSION}.tar.bz2" && \
     cd "htslib-${HTSLIB_VERSION}" && \
@@ -40,5 +40,5 @@ RUN curl -sL "https://github.com/samtools/htslib/releases/download/${HTSLIB_VERS
     rm -rf htslib-* samtools-*
 
 # R packages
-RUN install2.r --error BiocManager argparser tidyverse
+RUN install2.r --error BiocManager argparser tidyverse data.table
 RUN Rscript -e 'requireNamespace("BiocManager"); BiocManager::install("GenomicRanges"); BiocManager::install("rtracklayer")'
