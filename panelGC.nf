@@ -35,6 +35,13 @@ if (!new File(params.bam_directory_path).list().any { it.endsWith('.bam') || it.
     Please verify the path and content for --bam_directory_path.
     """
 }
+// Check if window size is a positive integer
+if (params.window_size < 0) {
+    exit 1, """
+    Error: window_size should be >= 0.
+    Please check your input.
+    """
+}
 // Check if AT and GC anchors are within expected numeric ranges
 if (!(params.at_anchor > 0 && params.at_anchor < 50)) {
     exit 1, """
@@ -172,7 +179,7 @@ process calculate_gc_content {
 
     script:
     """
-    calculate_gc_content.sh $input_extracted_sequences extracted_sequences_GC_content.txt
+    calculate_gc_content.sh ${params.window_size} $input_extracted_sequences extracted_sequences_GC_content.txt
     """
 }
 
@@ -205,7 +212,6 @@ process generate_gc_bias {
      * Run panelGC_main.R executable
      */
     input:
-    path probe_bed
     path intersected_coverage_dir
     path gc_content_summary
     path sample_labels_csv
@@ -224,7 +230,7 @@ process generate_gc_bias {
 
     script:
     """
-    panelGC_main.R --probe_bed_file $probe_bed --bam_coverage_directory $intersected_coverage_dir \
+    panelGC_main.R --bam_coverage_directory $intersected_coverage_dir \
     --reference_gc_content_file $gc_content_summary \
     --sample_labels_csv $sample_labels_csv \
     --outdir $out_dir --at_anchor $at_anchor --gc_anchor $gc_anchor \
@@ -245,7 +251,6 @@ workflow {
 
     
     generate_gc_bias(
-		probe_bed,
 		create_soft_links(coverage_files.collect()),
 		gc_content_summary,
 		file(params.sample_labels_csv_path),

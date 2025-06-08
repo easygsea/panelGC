@@ -44,6 +44,7 @@ nextflow run /path/to/panelGC/panelGC.nf \
   - sample: Sample names matching the BAM file names.
   - \<label>: A column for your labels with "True" or "False" values.
 - --out_dir: Path to the output directory.
+- --window_size: Window size (bp) for calculating GC content. Regions in the BED file smaller than window_size will be skipped. Use 0 to calculate GC content for each entire region in the BED file. Default: 100
 - --at_anchor: GC percentile anchor for detecting AT bias. Should be > 0 and < 50. Default: 25
 - --gc_anchor: GC percentile anchor for detecting GC bias. Should be > 50 and < 100. Default: 75
 - --failure_fold_change: Relative coverage fold change failure threshold. Should be > 0. Default: 2

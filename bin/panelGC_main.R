@@ -54,18 +54,21 @@ read_coverage_files_and_create_tibbles <- function(
     tibble_data <- read_tsv(file_path,
       col_names = c(
         "chromosome",
-        "probe_start_pos",
-        "probe_end_pos",
-        "offset",
+        "region_start_pos",
+        "region_end_pos",
+        "window_position",
         "depth"
       ),
       col_types = cols(
         chromosome = col_character(),
-        probe_start_pos = col_double(),
-        probe_end_pos = col_double(),
-        offset = col_double(),
+        region_start_pos = col_double(),
+        region_end_pos = col_double(),
+        window_position = col_double(),
         depth = col_double()
       )
+    ) %>%
+    mutate(
+      region = str_glue("{chromosome}:{region_start_pos}-{region_end_pos}")
     )
 
     # Assign the tibble to the list with the name as the key
@@ -81,6 +84,9 @@ read_gc_content_file <- function(file_path) {
     file_path,
     col_types = cols(
       region = col_character(),
+      region_name = col_character(),
+      window_start = col_double(),
+      window_end = col_double(),
       GC = col_double()
     )
   )
@@ -95,33 +101,6 @@ read_gc_content_file <- function(file_path) {
     )
 
   return(reformatted_data)
-}
-
-read_bed_file <- function(file_path) {
-  # Supply your BED file path with --bed_file_path
-  bed_data <- suppressMessages(
-    read_tsv(file_path, col_names = FALSE)
-  )
-
-  # Check the number of columns and process accordingly
-  if (ncol(bed_data) >= 4) {
-    colnames(bed_data)[4] <- "probe_name"
-  } else {
-    bed_data$probe_name <- seq(1000, 1000 + nrow(bed_data) - 1)
-  }
-
-  # Ensuring the first three columns are named correctly
-  colnames(bed_data)[1:3] <- c("chromosome", "probe_start_pos", "probe_end_pos")
-
-  return(bed_data)
-}
-
-add_offset_to_start_position_and_drop_columns <- function(tibble) {
-  tibble %>%
-    # Add offset to start position. Subtract one as offset starts with 1.
-    mutate(position = probe_start_pos + offset - 1) %>%
-    # Select the required columns
-    select(sample, probe_name, chromosome, position, depth)
 }
 
 calculate_gc_bias_regression <- function(bin_gc_summary) {
@@ -141,25 +120,34 @@ get_gc_bias_regression_table <- function(
     raw_bam_readcount_intersected_probes,
     gc_content) {
   mean_sample_depths <- raw_bam_readcount_intersected_probes %>%
+    mutate(position = region_start_pos + window_position - 1) %>%
     select(sample, chromosome, position, depth) %>%
     distinct() %>%
     group_by(sample) %>%
     summarise(mean_depth = mean(depth))
 
-  # Compute the median depth of each probe (or genomic bin) per sample.
-  gc_summary <- raw_bam_readcount_intersected_probes %>%
-    inner_join(gc_content,
+  # Compute the median depth of each probe (genomic bin) or sliding window per sample.
+  gc_summary <- gc_content %>%
+    # Expand rows to include all bases from window_start to window_end.
+    rowwise() %>%
+    mutate(window_position = list(seq(window_start, window_end))) %>%
+    unnest(window_position) %>%
+    ungroup() %>%
+    left_join(
+      raw_bam_readcount_intersected_probes,
+      by = c("region", "window_position"),
       multiple = "all"
     ) %>%
-    group_by(probe_name, GC, sample) %>%
-    summarise(depth_median = median(depth))
+    # Compute the median depth of each probe (genomic bin) or sliding window per sample.
+    group_by(region, region_name, window_start, window_end, GC, sample) %>%
+    summarise(depth_median = median(depth, na.rm = TRUE))
 
-  # Compute the median depth across probes (or genomic bins) with the same GC content.
+  # Compute the median depth across probes (genomic bins) or sliding windows with the same GC content.
   bin_gc_summary <- gc_summary %>%
     group_by(sample) %>%
     mutate(gc_percentile = floor(GC * 100) / 100) %>%
     group_by(sample, gc_percentile) %>%
-    summarise(depth_median_median = median(depth_median))
+    summarise(depth_median_median = median(depth_median, na.rm = TRUE))
 
   # Normalization by mean sample depth.
   bin_gc_summary <- left_join(
@@ -356,7 +344,6 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_
 }
 
 main <- function(
-    probe_bed_file,
     bam_coverage_directory,
     reference_gc_content_file,
     sample_labels_csv,
@@ -372,20 +359,8 @@ main <- function(
   gc_bias_name <- str_glue("bias_{GC_ANCHOR}")
 
   ## ------ Read files.
-  ## Read probes.
-  probes <- read_bed_file(probe_bed_file)
-
   ## Read GC content
   reference_gc_content <- read_gc_content_file(reference_gc_content_file)
-  ## Add probe name/identifier to reference_gc_content.
-  reference_gc_content <- reference_gc_content %>% left_join(
-    probes,
-    by = c(
-      "chromosome" = "chromosome",
-      "start_pos" = "probe_start_pos",
-      "end_pos" = "probe_end_pos"
-    )
-  )
 
   ## Read sample types if provided
   sample_labels <- if (sample_labels_csv != "NO_FILE") {
@@ -403,18 +378,6 @@ main <- function(
     imap(~ mutate(.x, sample = .y)) %>%
     bind_rows() %>%
     mutate(sample = sub("_intersected_coverage$", "", sample))
-  ## Add probe name/identifier to reference_gc_content.
-  all_libraries_raw_coverage <- all_libraries_raw_coverage %>% left_join(
-    probes,
-    by = c(
-      "chromosome" = "chromosome",
-      "probe_start_pos" = "probe_start_pos",
-      "probe_end_pos" = "probe_end_pos"
-    )
-  )
-  all_libraries_raw_coverage <- add_offset_to_start_position_and_drop_columns(
-    all_libraries_raw_coverage
-  )
 
   gc_bias_regression_table <- get_gc_bias_regression_table(
     all_libraries_raw_coverage,
@@ -504,16 +467,15 @@ find_here <- function() {
 parse_args_function <- function() {
   parser <- arg_parser(
     paste(
-      "R script for calculating and visualizing GC biases. Required inputs are",
-      "bam files in a directory, probes BED file and reference sequence FASTA.",
-      "Usage = generate_gc_biases.R --probe_bed_file <probe_bed_file>",
-      "--bam_coverage_directory <bam_coverage_directory>",
+      "R script for calculating and visualizing GC biases. Required inputs are bam files",
+      "in a directory and a GC content file calculated by bin/calculate_gc_content.sh.",
+      "Optional inputs are a sample labels csv file and an output directory.",
+      "Usage = panelGC_main.R --bam_coverage_directory <bam_coverage_directory>",
       "--reference_gc_content_file <reference_gc_content_file>",
-      "--sample_labels_csv <sample_labels_csv>",
+      "--sample_labels_csv <sample_labels_csv> (optional)",
       "--outdir <outdir>"
     )
   )
-  parser <- add_argument(parser, "--probe_bed_file", help = "Probes bed file")
   parser <- add_argument(
     parser,
     "--bam_coverage_directory",
@@ -582,7 +544,6 @@ parse_args_function <- function() {
 
 if (!interactive()) {
   args <- parse_args_function()
-  probe_bed_file <- pluck(args, "probe_bed_file")
   bam_coverage_directory <- pluck(args, "bam_coverage_directory")
   reference_gc_content_file <- pluck(args, "reference_gc_content_file")
   sample_labels_csv <- pluck(args, "sample_labels_csv")
@@ -597,7 +558,6 @@ if (!interactive()) {
   SHOW_SAMPLES <<- as.logical(pluck(args, "show_sample_names"))
   BIN_FOLDER <<- find_here()
   main(
-    probe_bed_file,
     bam_coverage_directory,
     reference_gc_content_file,
     sample_labels_csv,
