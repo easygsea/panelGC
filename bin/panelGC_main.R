@@ -199,57 +199,41 @@ classify_gc_bias <- function(
     relative_bias_name,
     at_bias_name,
     gc_bias_name) {
-  relative_bias_symbol <- as.symbol(relative_bias_name)
-  at_bias_symbol <- as.symbol(at_bias_name)
-  gc_bias_symbol <- as.symbol(gc_bias_name)
-  relative_failture_threshold_at_name <- str_glue("{relative_bias_name}_failure_threshold_at")
-  relative_failture_threshold_gc_name <- str_glue("{relative_bias_name}_failure_threshold_gc")
-  relative_warning_threshold_at_name <- str_glue("{relative_bias_name}_warning_threshold_at")
-  relative_warning_threshold_gc_name <- str_glue("{relative_bias_name}_warning_threshold_gc")
-  at_threshold_name <- str_glue("{at_bias_name}_failure_threshold")
-  gc_threshold_name <- str_glue("{gc_bias_name}_failure_threshold")
-  gc_bias_classification <- gc_bias_loess %>%
-    select(
-      c(
-        "sample",
-        all_of(relative_bias_name),
-        all_of(at_bias_name),
-        all_of(gc_bias_name)
-      )
-    ) %>%
-    # Convert bias score into fold change.
-    mutate(
-      across(
-        starts_with("bias_"), ~ 2 ** . - 1,
-        .names = "{.col}_fold_change"
-      )
-    ) %>%
-    mutate(
-      !!relative_failture_threshold_at_name := relative_bias_cutoff_failure_lower,
-      !!relative_failture_threshold_gc_name := relative_bias_cutoff_failure_upper,
-      !!relative_warning_threshold_at_name := relative_bias_cutoff_warning_lower,
-      !!relative_warning_threshold_gc_name := relative_bias_cutoff_warning_upper,
-      !!at_threshold_name := cutoff_failure_at,
-      !!gc_threshold_name := cutoff_failure_gc,
-      bias_type = case_when(
-        !!relative_bias_symbol >= relative_bias_cutoff_failure_upper ~ "GC biased",
-        !!relative_bias_symbol <= relative_bias_cutoff_failure_lower ~ "AT biased",
-        !!gc_bias_symbol >= cutoff_failure_gc ~ "GC biased",
-        !!at_bias_symbol >= cutoff_failure_at ~ "AT biased",
-        !!relative_bias_symbol >= relative_bias_cutoff_warning_upper ~ "GC bias warning",
-        !!relative_bias_symbol <= relative_bias_cutoff_warning_lower ~ "AT bias warning",
-        TRUE ~ "no bias"
-      )
-    ) %>%
-    select(
-      c(
-        sample,
-        starts_with(relative_bias_name),
-        starts_with(at_bias_name),
-        starts_with(gc_bias_name),
-        bias_type
-      )
-    )
+  cols_to_keep <- c("sample", relative_bias_name, at_bias_name, gc_bias_name)
+  gc_bias_classification <- gc_bias_loess[, ..cols_to_keep]
+
+  # Convert bias score into fold change
+  bias_cols <- grep("^bias_", names(gc_bias_classification), value = TRUE)
+  for (col in bias_cols) {
+    gc_bias_classification[, paste0(col, "_fold_change") := 2^get(col) - 1]
+  }
+
+  gc_bias_classification[, paste0(relative_bias_name, "_failure_threshold_at") := relative_bias_cutoff_failure_lower]
+  gc_bias_classification[, paste0(relative_bias_name, "_failure_threshold_gc") := relative_bias_cutoff_failure_upper]
+  gc_bias_classification[, paste0(relative_bias_name, "_warning_threshold_at") := relative_bias_cutoff_warning_lower]
+  gc_bias_classification[, paste0(relative_bias_name, "_warning_threshold_gc") := relative_bias_cutoff_warning_upper]
+  gc_bias_classification[, paste0(at_bias_name, "_failure_threshold") := cutoff_failure_at]
+  gc_bias_classification[, paste0(gc_bias_name, "_failure_threshold") := cutoff_failure_gc]
+
+  gc_bias_classification[, bias_type := fcase(
+    get(relative_bias_name) >= relative_bias_cutoff_failure_upper, "GC biased",
+    get(relative_bias_name) <= relative_bias_cutoff_failure_lower, "AT biased",
+    get(gc_bias_name) >= cutoff_failure_gc, "GC biased",
+    get(at_bias_name) >= cutoff_failure_at, "AT biased",
+    get(relative_bias_name) >= relative_bias_cutoff_warning_upper, "GC bias warning",
+    get(relative_bias_name) <= relative_bias_cutoff_warning_lower, "AT bias warning",
+    default = "no bias"
+  )]
+
+  cols_to_keep <- c(
+    "sample",
+    grep(paste0("^", relative_bias_name), names(gc_bias_classification), value = TRUE),
+    grep(paste0("^", at_bias_name), names(gc_bias_classification), value = TRUE),
+    grep(paste0("^", gc_bias_name), names(gc_bias_classification), value = TRUE),
+    "bias_type"
+  )
+  gc_bias_classification <- gc_bias_classification[, ..cols_to_keep]
+
   return(gc_bias_classification)
 }
 
@@ -260,20 +244,34 @@ calculate_gc_bias_loess <- function(
     relative_bias_name,
     at_bias_name,
     gc_bias_name) {
-  gc_bias_loess <- gc_bias_regression %>%
-    filter(
-      gc_percentile == GC_ANCHOR / 100 | gc_percentile == AT_ANCHOR / 100
-    ) %>%
-    select(sample, gc_percentile, loess_depth) %>%
-    mutate(gc_percentile = gc_percentile * 100) %>%
-    pivot_wider(
-      names_from = gc_percentile, values_from = loess_depth,
-      names_prefix = "bias_"
-    ) %>%
-    # Compute GC-to-AT relative bias score.
-    mutate(!!relative_bias_name :=
-      log2((2 ** get(gc_bias_name) - 1) /
-        (2 ** get(at_bias_name) - 1) + 1))
+  # Filter and select required columns.
+  gc_bias_loess <- gc_bias_regression[
+    gc_percentile == GC_ANCHOR / 100 | gc_percentile == AT_ANCHOR / 100,
+    .(sample, gc_percentile, loess_depth)
+  ]
+
+  # Multiply gc_percentile by 100.
+  gc_bias_loess[, gc_percentile := gc_percentile * 100]
+
+  # Reshape wide using dcast.
+  gc_bias_loess <- dcast(
+    gc_bias_loess,
+    sample ~ gc_percentile,
+    value.var = "loess_depth"
+  )
+
+  # Rename columns with prefix.
+  setnames(
+    gc_bias_loess,
+    old = as.character(c(GC_ANCHOR, AT_ANCHOR)),
+    new = paste0("bias_", c(GC_ANCHOR, AT_ANCHOR))
+  )
+
+  # Compute GC-to-AT relative bias score.
+  gc_bias_loess[, (relative_bias_name) := 
+    log2((2^get(gc_bias_name) - 1) / (2^get(at_bias_name) - 1) + 1)
+  ]
+
   return(gc_bias_loess)
 }
 
