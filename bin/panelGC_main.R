@@ -305,11 +305,16 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_
   }
 
   # Calculate y-axis limits with more aesthetic rounding
-  y_max <- ceiling(max(gc_bias_regression$loess_depth) * 2) / 2
-  min_loess_depth <- min(gc_bias_regression$loess_depth)
-  y_min <- ifelse(min_loess_depth < 0,
-                 floor(min_loess_depth * 2) / 2,
-                 0)
+  if (Y_LIM == "auto") {
+    min_loess_depth <- min(gc_bias_regression$loess_depth)
+    y_min <- ifelse(min_loess_depth < 0,
+                    floor(min_loess_depth * 2) / 2,
+                    0)
+    y_max <- ceiling(max(gc_bias_regression$loess_depth) * 2) / 2
+  } else {
+    y_min <- Y_LIM[1]
+    y_max <- Y_LIM[2]
+  }
   
   # Generate sample GC profiles plot.
   base_plot <- merge(
@@ -534,6 +539,12 @@ parse_args_function <- function() {
   )
   parser <- add_argument(
     parser,
+    "--y_lim",
+    help = "y-axis minimum and maximum.",
+    default = "auto"
+  )
+  parser <- add_argument(
+    parser,
     "--draw_trend",
     help = "Generate trend visualization."
   )
@@ -558,6 +569,13 @@ if (!interactive()) {
   WARNING_FOLD_CHANGE <<- as.numeric(pluck(args, "warning_fold_change"))
   FAILURE_AT <<- as.numeric(pluck(args, "failure_at"))
   FAILURE_GC <<- as.numeric(pluck(args, "failure_gc"))
+  Y_LIM <<- pluck(args, "y_lim")
+  if (Y_LIM != "auto") {
+    Y_LIM <<- as.numeric(str_split(Y_LIM, ",")[[1]])
+    if (length(Y_LIM) != 2 || !all(is.numeric(Y_LIM)) || Y_LIM[1] >= Y_LIM[2]) {
+      stop("y_lim must be a comma-separated string of two numbers where the first number is less than the second.")
+    }
+  }
   DRAW_TREND <<- as.logical(pluck(args, "draw_trend"))
   SHOW_SAMPLES <<- as.logical(pluck(args, "show_sample_names"))
   BIN_FOLDER <<- find_here()

@@ -222,6 +222,7 @@ process generate_gc_bias {
     val warning_fold_change
     val failure_at
     val failure_gc
+    val y_lim
     val draw_trend
     val show_sample_names
 
@@ -236,6 +237,7 @@ process generate_gc_bias {
     --outdir $out_dir --at_anchor $at_anchor --gc_anchor $gc_anchor \
     --failure_fold_change $failure_fold_change --warning_fold_change $warning_fold_change \
     --failure_at $failure_at --failure_gc $failure_gc \
+    --y_lim $y_lim \
     --draw_trend $draw_trend --show_sample_names $show_sample_names
     """
 }
@@ -261,6 +263,7 @@ workflow {
         params.warning_fold_change,
         params.failure_at,
         params.failure_gc,
+        params.y_lim,
         params.draw_trend,
         params.show_sample_names
    )
