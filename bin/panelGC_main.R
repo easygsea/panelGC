@@ -430,7 +430,7 @@ main <- function(
       file.path(outdir, "per_base_coverage.png"),
       plot = p_per_base_coverage,
       height = 7.5,
-      width = 1.5 * n_samples + 3,
+      width = 0.6 * n_samples + 3,
       units = "in"
     )
   }
