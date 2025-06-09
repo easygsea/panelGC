@@ -169,7 +169,7 @@ process calculate_gc_content {
     /*
      * Run helper bash script to create GC content.
      */
-    publishDir "${params.out_dir}/gc_content", mode: 'copy'
+    publishDir "${params.out_dir}/gc_content", mode: 'copy', enabled: params.publish_gc_content_summary
 
     input:
     path input_extracted_sequences
