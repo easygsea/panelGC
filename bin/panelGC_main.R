@@ -304,9 +304,13 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_
     )
   }
 
-  # Maximum of y-axis.
-  y_max <- ceiling(max(gc_bias_regression$normalized_depth) * 2) / 2
-  y_min <- floor(min(gc_bias_regression$normalized_depth) * 2) / 2
+  # Calculate y-axis limits with more aesthetic rounding
+  y_max <- ceiling(max(gc_bias_regression$loess_depth) * 2) / 2
+  min_loess_depth <- min(gc_bias_regression$loess_depth)
+  y_min <- ifelse(min_loess_depth < 0,
+                 floor(min_loess_depth * 2) / 2,
+                 0)
+  
   # Generate sample GC profiles plot.
   base_plot <- merge(
     gc_bias_regression_w_labels,
@@ -328,9 +332,10 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_
   # Add the rest of the layers
   p <- base_plot +
     geom_smooth_layer +
-    scale_y_continuous("LOESS Depth Per GC Percentile") +
+    scale_y_continuous("LOESS Depth Per GC Percentile",
+                      limits = c(y_min, y_max))
     ggtitle("GC Content vs. Coverage by Sample") +
-    coord_cartesian(xlim = c(0.0, 1.0), ylim = c(y_min, y_max)) +
+    coord_cartesian(xlim = c(0.0, 1.0)) +
     scale_x_continuous("GC Content", breaks = seq(0, 1.0, 0.2)) +
     scale_color_manual(name = "Bias Type", values = BIAS_COLORS) +
     theme_bw(base_size = 20) +
