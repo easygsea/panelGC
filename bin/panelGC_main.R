@@ -296,24 +296,23 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_
   if (!is.null(sample_labels)) {
     # Second column name is the label
     label <- colnames(sample_labels)[2]
-    gc_bias_regression_w_labels <- gc_bias_regression %>%
-      left_join(
-        sample_labels,
-        by = "sample"
-      )
+    gc_bias_regression_w_labels <- merge(
+      gc_bias_regression_w_labels,
+      sample_labels,
+      by = "sample",
+      all.x = TRUE
+    )
   }
 
   # Maximum of y-axis.
-  y_max <- ceiling(max(pull(gc_bias_regression, normalized_depth)))
+  y_max <- ceiling(max(gc_bias_regression$normalized_depth))
   # Generate sample GC profiles plot.
-  base_plot <- gc_bias_regression_w_labels %>%
-    left_join(
-      select(
-        gc_bias_classification,
-        "sample", "bias_type"
-      ),
-      by = "sample", multiple = "all"
-    ) %>%
+  base_plot <- merge(
+    gc_bias_regression_w_labels,
+    gc_bias_classification[, .(sample, bias_type)],
+    by = "sample",
+    all.x = TRUE
+  ) %>%
     ggplot(aes(x = gc_percentile, y = normalized_depth, color = bias_type))
 
   # Conditionally add the geom_smooth layer
