@@ -104,8 +104,12 @@ calculate_gc_bias_regression <- function(bin_gc_summary) {
       loess_depth = loess_depth
     )
 
-    # Join with original data.
-    result <- merge(result, .SD, by = "gc_percentile", all.x = TRUE)
+    # Join with original data and rename mean_depth.x to mean_depth
+    result <- merge(result, .SD, by = "gc_percentile", all.x = TRUE)[
+      , mean_depth := mean_depth.x
+    ][
+      , mean_depth.y := NULL
+    ]
   }, by = sample]
 
   return(gc_bias_regression)
