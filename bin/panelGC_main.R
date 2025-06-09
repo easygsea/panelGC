@@ -259,7 +259,8 @@ calculate_gc_bias_loess <- function(
     gc_bias_name) {
   # Filter and select required columns.
   gc_bias_loess <- gc_bias_regression[
-    gc_percentile == GC_ANCHOR / 100 | gc_percentile == AT_ANCHOR / 100,
+    # Filter out rows where gc_percentile is not close to GC_ANCHOR or AT_ANCHOR.
+    (abs(gc_percentile - GC_ANCHOR / 100) < 1e-10) | (abs(gc_percentile - AT_ANCHOR / 100) < 1e-10),
     .(sample, gc_percentile, loess_depth)
   ]
 
