@@ -132,7 +132,7 @@ process bedtools_coverage {
     /*
      * Run bedtools coverage
      */
-    publishDir "${params.out_dir}/coverage", mode: 'copy'
+    publishDir "${params.out_dir}/coverage", mode: 'copy', enabled: params.publish_per_base_coverage
 
     input:
     tuple val(library_id), path(converted_bam)
