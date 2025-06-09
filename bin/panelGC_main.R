@@ -353,7 +353,7 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_
 plot_per_base_coverage <- function(all_libraries_raw_coverage) {
   p <- ggplot(all_libraries_raw_coverage, aes(sample, depth)) +
     geom_boxplot(varwidth = TRUE) +
-    scale_y_continuous("Coverage", trans = "log10") +
+    scale_y_continuous("Coverage", trans = "log10", limits = c(1, NA)) +
     scale_x_discrete("Sample") +
     ggtitle("Per-Base Coverage") +
     theme_bw(base_size = 20) +
