@@ -81,7 +81,7 @@ read_gc_content_file <- function(file_path) {
 
 calculate_gc_bias_regression <- function(bin_gc_summary) {
   # Calculate LOESS regression for each sample
-  gc_bias_regression <- bin_gc_summary[, {
+  gc_bias_regression <- bin_gc_summary[!is.na(normalized_depth), {
     setorder(.SD, gc_percentile)
     loess_model <- stats::loess(normalized_depth ~ gc_percentile,
                                span = 0.75, 
