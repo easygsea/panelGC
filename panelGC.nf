@@ -226,7 +226,7 @@ process generate_gc_bias {
     val show_sample_names
 
     output:
-    path "${out_dir}/*", emit: panelGC_results
+    path "*", emit: panelGC_results
 
     script:
     """
@@ -251,10 +251,10 @@ workflow {
 
     
     generate_gc_bias(
-		create_soft_links(coverage_files.collect()),
-		gc_content_summary,
-		file(params.sample_labels_csv_path),
-		params.out_dir,
+        create_soft_links(coverage_files.collect()),
+        gc_content_summary,
+        file(params.sample_labels_csv_path),
+        ".",
         params.at_anchor,
         params.gc_anchor,
         params.failure_fold_change,
