@@ -89,9 +89,23 @@ calculate_gc_bias_regression <- function(bin_gc_summary) {
     loess_model <- stats::loess(normalized_depth ~ gc_percentile,
                                span = 0.75, 
                                data = .SD)
+
+    # Create sequence of all possible GC percentiles from min to max.
+    all_gc_percentiles <- seq(min(.SD$gc_percentile), max(.SD$gc_percentile), by = 0.01)
+
+    # Predict for all percentiles.
     loess_depth <- stats::predict(loess_model,
-                                 newdata = data.frame(gc_percentile = unique(gc_percentile)))
-    cbind(.SD, loess_depth)
+                                 newdata = data.frame(gc_percentile = all_gc_percentiles))
+
+    # Create data table with all percentiles and predictions.
+    result <- data.table(
+      gc_percentile = all_gc_percentiles,
+      mean_depth = .SD$mean_depth,
+      loess_depth = loess_depth
+    )
+
+    # Join with original data.
+    result <- merge(result, .SD, by = "gc_percentile", all.x = TRUE)
   }, by = sample]
 
   return(gc_bias_regression)
