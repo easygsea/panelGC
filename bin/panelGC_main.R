@@ -30,7 +30,7 @@ read_sample_labels_csv <- function(file_path) {
   return(sample_labels)
 }
 
-read_coverage_files_and_create_tibbles <- function(
+read_coverage_files_and_create_data_tables <- function(
     directory_path,
     file_pattern) {
   # List all files in the directory that match the given pattern
@@ -41,7 +41,7 @@ read_coverage_files_and_create_tibbles <- function(
   )
 
   # Initialize an empty list to store tibbles
-  tibbles_list <- list()
+  data_tables_list <- list()
 
   # Read each file, create a tibble, and assign it a name based on the file name
   for (file_path in file_paths) {
@@ -49,7 +49,7 @@ read_coverage_files_and_create_tibbles <- function(
     file_name <- tools::file_path_sans_ext(basename(file_path))
 
     # Read the file using data.table
-    tibble_data <- fread(file_path,
+    data_table <- fread(file_path,
       col.names = c(
         "chromosome",
         "region_start_pos", 
@@ -63,11 +63,11 @@ read_coverage_files_and_create_tibbles <- function(
       )
     )[, region := sprintf("%s:%d-%d", chromosome, region_start_pos, region_end_pos)]
 
-    # Assign the tibble to the list with the name as the key
-    tibbles_list[[file_name]] <- tibble_data
+    # Assign the data table to the list with the name as the key
+    data_tables_list[[file_name]] <- data_table
   }
 
-  return(tibbles_list)
+  return(data_tables_list)
 }
 
 read_gc_content_file <- function(file_path) {
@@ -104,11 +104,9 @@ calculate_gc_bias_regression <- function(bin_gc_summary) {
       loess_depth = loess_depth
     )
 
-    # Join with original data and rename mean_depth.x to mean_depth
+    # Join with original data and clean up mean_depth columns
     result <- merge(result, .SD, by = "gc_percentile", all.x = TRUE)[
-      , mean_depth := mean_depth.x
-    ][
-      , mean_depth.y := NULL
+      , `:=`(mean_depth = mean_depth.x, mean_depth.x = NULL, mean_depth.y = NULL)
     ]
   }, by = sample]
 
@@ -370,14 +368,17 @@ main <- function(
   }
 
   ## Read coverage data for each sample.
-  raw_coverage_tibbles <- read_coverage_files_and_create_tibbles(
+  raw_coverage_data_tables <- read_coverage_files_and_create_data_tables(
     bam_coverage_directory,
     "_intersected_coverage\\.bed$"
   )
-  all_libraries_raw_coverage <- raw_coverage_tibbles %>%
-    imap(~ mutate(.x, sample = .y)) %>%
-    bind_rows() %>%
-    mutate(sample = sub("_intersected_coverage$", "", sample))
+  all_libraries_raw_coverage <- rbindlist(
+    lapply(names(raw_coverage_data_tables), function(sample_name) {
+      dt <- copy(raw_coverage_data_tables[[sample_name]])
+      dt[, sample := sub("_intersected_coverage$", "", sample_name)]
+      return(dt)
+    })
+  )
 
   gc_bias_regression_table <- get_gc_bias_regression_table(
     all_libraries_raw_coverage,
