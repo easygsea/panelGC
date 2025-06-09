@@ -11,8 +11,8 @@ amd64, arm64v8, ppc64le, s390x ([more info](https://github.com/docker-library/of
 - Nextflow (tested with 24.10.3)
 
 Containerized dependencies (no installation required):
-bedtools 2.30.0
-r-base 4.3.2 argparser 0.7.1 BiocManager 1.30.22 GenomicRanges 1.54.1 rtracklayer 1.62.0 tidyverse 2.0.0
+bedtools 2.30.0 HTSlib 1.22 SAMtools 1.22
+r-base 4.3.2 argparser 0.7.1 tidyverse 2.0.0 data.table 1.14.8
 
 ## Installation
 - Install Apptainer: \

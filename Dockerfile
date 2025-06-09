@@ -5,7 +5,7 @@ FROM rocker/r-ver:4.3
 LABEL base_image="rocker/r-ver:4.3"
 LABEL version="1"
 LABEL software="panelGC"
-LABEL software.version="1.1.0"
+LABEL software.version="1.2.0"
 LABEL about.summary="An open source tool for quantifying and monitoring GC bias in sequencing panels"
 LABEL about.home="https://github.com/easygsea/panelGC"
 LABEL about.license="SPDX:GPL-3.0"
