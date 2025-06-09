@@ -223,6 +223,7 @@ process generate_gc_bias {
     val failure_at
     val failure_gc
     val y_lim
+    val draw_per_base_coverage
     val draw_trend
     val show_sample_names
 
@@ -238,6 +239,7 @@ process generate_gc_bias {
     --failure_fold_change $failure_fold_change --warning_fold_change $warning_fold_change \
     --failure_at $failure_at --failure_gc $failure_gc \
     --y_lim $y_lim \
+    --draw_per_base_coverage $draw_per_base_coverage \
     --draw_trend $draw_trend --show_sample_names $show_sample_names
     """
 }
@@ -264,6 +266,7 @@ workflow {
         params.failure_at,
         params.failure_gc,
         params.y_lim,
+        params.draw_per_base_coverage,
         params.draw_trend,
         params.show_sample_names
    )

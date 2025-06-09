@@ -350,6 +350,18 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_
   return(p)
 }
 
+plot_per_base_coverage <- function(all_libraries_raw_coverage) {
+  p <- ggplot(all_libraries_raw_coverage, aes(sample, depth)) +
+    geom_boxplot(varwidth = TRUE) +
+    scale_y_continuous("Coverage") +
+    scale_x_discrete("Sample") +
+    ggtitle("Per-Base Coverage") +
+    theme_bw(base_size = 20) +
+    theme(legend.position = "none",
+          axis.text.x = element_text(angle = 90, vjust = 0.5))
+  return(p)
+}
+
 main <- function(
     bam_coverage_directory,
     reference_gc_content_file,
@@ -387,6 +399,18 @@ main <- function(
       dt
     }, raw_coverage_data_tables, names(raw_coverage_data_tables))
   )
+
+  if (DRAW_PER_BASE_COVERAGE) {
+    p_per_base_coverage <- plot_per_base_coverage(all_libraries_raw_coverage)
+    n_samples <- length(unique(all_libraries_raw_coverage$sample))
+    ggsave(
+      file.path(outdir, "per_base_coverage.png"),
+      plot = p_per_base_coverage,
+      height = 7.5,
+      width = 1.5 * n_samples + 3,
+      units = "in"
+    )
+  }
 
   gc_bias_regression_table <- get_gc_bias_regression_table(
     all_libraries_raw_coverage,
@@ -545,6 +569,11 @@ parse_args_function <- function() {
   )
   parser <- add_argument(
     parser,
+    "--draw_per_base_coverage",
+    help = "Draw per-base coverage plot."
+  )
+  parser <- add_argument(
+    parser,
     "--draw_trend",
     help = "Generate trend visualization."
   )
@@ -578,6 +607,7 @@ if (!interactive()) {
   }
   DRAW_TREND <<- as.logical(pluck(args, "draw_trend"))
   SHOW_SAMPLES <<- as.logical(pluck(args, "show_sample_names"))
+  DRAW_PER_BASE_COVERAGE <<- as.logical(pluck(args, "draw_per_base_coverage"))
   BIN_FOLDER <<- find_here()
   main(
     bam_coverage_directory,
