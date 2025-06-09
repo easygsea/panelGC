@@ -373,11 +373,10 @@ main <- function(
     "_intersected_coverage\\.bed$"
   )
   all_libraries_raw_coverage <- rbindlist(
-    lapply(names(raw_coverage_data_tables), function(sample_name) {
-      dt <- copy(raw_coverage_data_tables[[sample_name]])
-      dt[, sample := sub("_intersected_coverage$", "", sample_name)]
-      return(dt)
-    })
+    Map(function(dt, name) {
+      dt[, sample := sub("_intersected_coverage$", "", name)]
+      dt
+    }, raw_coverage_data_tables, names(raw_coverage_data_tables))
   )
 
   gc_bias_regression_table <- get_gc_bias_regression_table(
