@@ -353,7 +353,7 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_
 plot_per_base_coverage <- function(all_libraries_raw_coverage) {
   p <- ggplot(all_libraries_raw_coverage, aes(sample, depth)) +
     geom_boxplot(varwidth = TRUE) +
-    scale_y_continuous("Coverage") +
+    scale_y_continuous("Coverage", trans = "log10") +
     scale_x_discrete("Sample") +
     ggtitle("Per-Base Coverage") +
     theme_bw(base_size = 20) +
@@ -600,7 +600,7 @@ if (!interactive()) {
   FAILURE_GC <<- as.numeric(pluck(args, "failure_gc"))
   Y_LIM <<- pluck(args, "y_lim")
   if (Y_LIM != "auto") {
-    Y_LIM <<- as.numeric(str_split(Y_LIM, ",| ")[[1]])
+    Y_LIM <<- as.numeric(str_split(Y_LIM, ",")[[1]])
     if (length(Y_LIM) != 2 || !all(is.numeric(Y_LIM)) || Y_LIM[1] >= Y_LIM[2]) {
       stop("y_lim must be a comma-separated string of two numbers where the first number is less than the second.")
     }
