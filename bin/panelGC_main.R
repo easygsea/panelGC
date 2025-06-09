@@ -305,7 +305,7 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_
   }
 
   # Calculate y-axis limits with more aesthetic rounding
-  if (Y_LIM == "auto") {
+  if (identical(Y_LIM, "auto")) {
     min_loess_depth <- min(gc_bias_regression$loess_depth)
     y_min <- ifelse(min_loess_depth < 0,
                     floor(min_loess_depth * 2) / 2,
