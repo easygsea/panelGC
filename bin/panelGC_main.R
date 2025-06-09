@@ -351,9 +351,25 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_
 }
 
 plot_per_base_coverage <- function(all_libraries_raw_coverage) {
+  # Calculate max depth to determine appropriate breaks
+  max_depth <- max(all_libraries_raw_coverage$depth)
+  max_power <- ceiling(log10(max_depth))
+
+  # Generate major breaks (powers of 10)
+  major_breaks <- 10^seq(0, max_power)
+
+  # Generate minor breaks for each decade
+  minor_breaks <- unlist(lapply(seq(0, max_power-1), function(power) {
+    seq(10^power, 10^(power+1), length.out = 10)
+  }))
+
   p <- ggplot(all_libraries_raw_coverage, aes(sample, depth)) +
     geom_boxplot(varwidth = TRUE) +
-    scale_y_continuous("Coverage", trans = "log10", limits = c(1, NA)) +
+    scale_y_continuous("Coverage", 
+                      trans = "log10", 
+                      limits = c(1, NA),
+                      breaks = major_breaks,
+                      minor_breaks = minor_breaks) +
     scale_x_discrete("Sample") +
     ggtitle("Per-Base Coverage") +
     theme_bw(base_size = 20) +
