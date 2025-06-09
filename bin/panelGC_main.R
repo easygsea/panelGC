@@ -85,7 +85,7 @@ calculate_gc_bias_regression <- function(bin_gc_summary) {
     setorder(.SD, gc_percentile)
     loess_model <- stats::loess(normalized_depth ~ gc_percentile,
                                span = 0.75, 
-                               data = .SD)
+                               data = as.data.frame(.SD))
 
     # Create sequence of all possible GC percentiles from min to max.
     all_gc_percentiles <- seq(min(.SD$gc_percentile), max(.SD$gc_percentile), by = 0.01)
