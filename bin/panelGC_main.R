@@ -571,7 +571,7 @@ if (!interactive()) {
   FAILURE_GC <<- as.numeric(pluck(args, "failure_gc"))
   Y_LIM <<- pluck(args, "y_lim")
   if (Y_LIM != "auto") {
-    Y_LIM <<- as.numeric(str_split(Y_LIM, ",")[[1]])
+    Y_LIM <<- as.numeric(str_split(Y_LIM, ",| ")[[1]])
     if (length(Y_LIM) != 2 || !all(is.numeric(Y_LIM)) || Y_LIM[1] >= Y_LIM[2]) {
       stop("y_lim must be a comma-separated string of two numbers where the first number is less than the second.")
     }
