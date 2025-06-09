@@ -215,7 +215,7 @@ process generate_gc_bias {
     path intersected_coverage_dir
     path gc_content_summary
     path sample_labels_csv
-    path out_dir
+    val out_dir
     val at_anchor
     val gc_anchor
     val failure_fold_change
@@ -254,7 +254,7 @@ workflow {
 		create_soft_links(coverage_files.collect()),
 		gc_content_summary,
 		file(params.sample_labels_csv_path),
-		file(params.out_dir),
+		params.out_dir,
         params.at_anchor,
         params.gc_anchor,
         params.failure_fold_change,
