@@ -5,9 +5,6 @@ suppressPackageStartupMessages({
   library(tidyverse)
 })
 
-# Suppress summarise info.
-options(dplyr.summarise.inform = FALSE)
-
 # Global variables ----
 BIAS_COLORS <- c(
   "GC biased" = "blue",
