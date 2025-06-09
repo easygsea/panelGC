@@ -363,7 +363,14 @@ plot_per_base_coverage <- function(all_libraries_raw_coverage) {
     seq(10^power, 10^(power+1), length.out = 10)
   }))
 
-  p <- ggplot(all_libraries_raw_coverage, aes(sample, depth)) +
+  # Truncate sample names if they're too long
+  all_libraries_raw_coverage$sample_short <- ifelse(
+    nchar(all_libraries_raw_coverage$sample) > 15,
+    paste0(substr(all_libraries_raw_coverage$sample, 1, 12), "..."),
+    all_libraries_raw_coverage$sample
+  )
+
+  p <- ggplot(all_libraries_raw_coverage, aes(sample_short, depth)) +
     geom_boxplot(varwidth = TRUE) +
     scale_y_continuous("Coverage", 
                       trans = "log10", 
