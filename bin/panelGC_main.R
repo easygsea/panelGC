@@ -333,10 +333,11 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_
   p <- base_plot +
     geom_smooth_layer +
     scale_y_continuous("LOESS Depth Per GC Percentile",
-                      limits = c(y_min, y_max))
+                      limits = c(y_min, y_max)) +
     ggtitle("GC Content vs. Coverage by Sample") +
-    coord_cartesian(xlim = c(0.0, 1.0)) +
-    scale_x_continuous("GC Content", breaks = seq(0, 1.0, 0.2)) +
+    scale_x_continuous("GC Content", 
+                      limits = c(0, 1),
+                      breaks = seq(0, 1.0, 0.2)) +
     scale_color_manual(name = "Bias Type", values = BIAS_COLORS) +
     theme_bw(base_size = 20) +
     theme(legend.position = "right")
