@@ -53,6 +53,8 @@ nextflow run /path/to/panelGC/panelGC.nf \
 - --failure_gc: Coverage fold change failure threshold at the GC anchor. Should be > 0. Default: 1.5
 - --draw_trend: Boolean parameter to determine whether to generate trend visualization. Default: false
 - --show_sample_names: Boolean parameter to determine whether to sample names in trend visualization. Default: true
+- --publish_per_base_coverage: Boolean parameter to determine whether to publish per-base coverage files in the output directory. Default: false
+- --publish_gc_content_summary: Boolean parameter to determine whether to publish the GC content summary file in the output directory. Default: true
 - --publish_bam_files: Boolean parameter to determine whether to publish converted BAM files in the output directory when input files are in CRAM format. Default: false
 
 ## Memory Requirements
