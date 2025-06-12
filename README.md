@@ -59,6 +59,13 @@ nextflow run /path/to/panelGC/panelGC.nf \
 - --publish_gc_content_summary: Boolean parameter to determine whether to publish the GC content summary file in the output directory. Default: true
 - --publish_bam_files: Boolean parameter to determine whether to publish converted BAM files in the output directory when input files are in CRAM format. Default: false
 
+### Retry mechanism
+The workflow uses a retry mechanism to handle transient failures. By default, processes will retry up to 10 times with an exponential backoff strategy. This helps ensure robust execution in environments with unstable network connections or resource constraints, particularly when processing CRAM files.
+
+To modify retry behavior, you can adjust the following parameters in `nextflow.config`:
+- `maxRetries`: Maximum number of retry attempts (default: 10)
+- `errorStrategy`: Strategy for handling errors (default: 'retry')
+
 ## Memory Requirements
 The bedtools_coverage process in panelGC is configured to use a maximum of 4 forks (panelGC.nf, line 130), as it typically requires around ~15GB per fork. It's important to note that users with less than 100GB of memory may need to decrease the number of forks, while those with more than 100GB can consider increasing it for potentially better performance.
 
