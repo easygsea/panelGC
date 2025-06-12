@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean
 
 # Install HTSlib and samtools
-ENV HTSLIB_VERSION=1.22
+ENV HTSLIB_VERSION=1.19
 RUN curl -sL "https://github.com/samtools/htslib/releases/download/${HTSLIB_VERSION}/htslib-${HTSLIB_VERSION}.tar.bz2" -o "htslib-${HTSLIB_VERSION}.tar.bz2" && \
     tar -xjf "htslib-${HTSLIB_VERSION}.tar.bz2" && \
     cd "htslib-${HTSLIB_VERSION}" && \
