@@ -323,20 +323,18 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_
     by = "sample",
     all.x = TRUE
   ) %>%
-    ggplot(aes(x = gc_percentile, y = normalized_depth, color = bias_type))
+    ggplot(aes(x = gc_percentile, y = loess_depth, color = bias_type))
 
-  # Conditionally add the geom_smooth layer
+  # Conditionally add the geom_line layer
   if (!is.null(label)) {
-    geom_smooth_layer <- geom_smooth(aes(group = sample, linetype = .data[[label]]),
-                                     method = "loess", formula = y ~ x, se = FALSE, fullrange = TRUE)
+    geom_line_layer <- geom_line(aes(group = sample, linetype = .data[[label]]))
   } else {
-    geom_smooth_layer <- geom_smooth(aes(group = sample),
-                                     method = "loess", formula = y ~ x, se = FALSE, fullrange = TRUE)
+    geom_line_layer <- geom_line(aes(group = sample))
   }
 
   # Add the rest of the layers
   p <- base_plot +
-    geom_smooth_layer +
+    geom_line_layer +
     scale_y_continuous("LOESS Depth Per GC Percentile",
                       limits = c(y_min, y_max)) +
     ggtitle("GC Content vs. Coverage by Sample") +
@@ -430,7 +428,7 @@ main <- function(
       file.path(outdir, "per_base_coverage.png"),
       plot = p_per_base_coverage,
       height = 7.5,
-      width = 0.6 * n_samples + 3,
+      width = 0.5 * n_samples + 3,
       units = "in"
     )
   }
