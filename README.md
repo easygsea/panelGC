@@ -51,9 +51,11 @@ nextflow run /path/to/panelGC/panelGC.nf \
 - --warning_fold_change: Relative coverage fold change warning threshold. Should be > 0 and less than failure_fold_change. Default: 1.5
 - --failure_at: Coverage fold change failure threshold at the AT anchor. Should be > 0. Default: 1.5
 - --failure_gc: Coverage fold change failure threshold at the GC anchor. Should be > 0. Default: 1.5
+- --y_lim: y-axis minimum and maximum for the GC bias profile plot. Comma-separated string of two numbers where the first number is less than the second e.g. "0,1". Default: "auto", which means the y-axis will be automatically determined by the data.
 - --draw_trend: Boolean parameter to determine whether to generate trend visualization. Default: false
 - --show_sample_names: Boolean parameter to determine whether to sample names in trend visualization. Default: true
-- --publish_per_base_coverage: Boolean parameter to determine whether to publish per-base coverage files in the output directory. Default: false
+- --draw_per_base_coverage: Boolean parameter to determine whether to draw per-base coverage plot. Default: true
+- --publish_per_base_coverage: Boolean parameter to determine whether to publish the per-base coverage file for each sample in the output directory. Default: true
 - --publish_gc_content_summary: Boolean parameter to determine whether to publish the GC content summary file in the output directory. Default: true
 - --publish_bam_files: Boolean parameter to determine whether to publish converted BAM files in the output directory when input files are in CRAM format. Default: false
 
