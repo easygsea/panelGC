@@ -35,6 +35,13 @@ if (!new File(params.bam_directory_path).list().any { it.endsWith('.bam') || it.
     Please verify the path and content for --bam_directory_path.
     """
 }
+// Check if window size is a positive integer
+if (params.window_size < 0) {
+    exit 1, """
+    Error: window_size should be >= 0.
+    Please check your input.
+    """
+}
 // Check if AT and GC anchors are within expected numeric ranges
 if (!(params.at_anchor > 0 && params.at_anchor < 50)) {
     exit 1, """
@@ -125,7 +132,7 @@ process bedtools_coverage {
     /*
      * Run bedtools coverage
      */
-    publishDir "${params.out_dir}/coverage", mode: 'copy'
+    publishDir "${params.out_dir}/coverage", mode: 'copy', enabled: params.publish_per_base_coverage
 
     input:
     tuple val(library_id), path(converted_bam)
@@ -162,7 +169,7 @@ process calculate_gc_content {
     /*
      * Run helper bash script to create GC content.
      */
-    publishDir "${params.out_dir}/gc_content", mode: 'copy'
+    publishDir "${params.out_dir}/gc_content", mode: 'copy', enabled: params.publish_gc_content_summary
 
     input:
     path input_extracted_sequences
@@ -172,7 +179,7 @@ process calculate_gc_content {
 
     script:
     """
-    calculate_gc_content.sh $input_extracted_sequences extracted_sequences_GC_content.txt
+    calculate_gc_content.sh ${params.window_size} $input_extracted_sequences extracted_sequences_GC_content.txt
     """
 }
 
@@ -205,31 +212,34 @@ process generate_gc_bias {
      * Run panelGC_main.R executable
      */
     input:
-    path probe_bed
     path intersected_coverage_dir
     path gc_content_summary
     path sample_labels_csv
-    path out_dir
+    val out_dir
     val at_anchor
     val gc_anchor
     val failure_fold_change
     val warning_fold_change
     val failure_at
     val failure_gc
+    val y_lim
+    val draw_per_base_coverage
     val draw_trend
     val show_sample_names
 
     output:
-    path "${out_dir}/*", emit: panelGC_results
+    path "*", emit: panelGC_results
 
     script:
     """
-    panelGC_main.R --probe_bed_file $probe_bed --bam_coverage_directory $intersected_coverage_dir \
+    panelGC_main.R --bam_coverage_directory $intersected_coverage_dir \
     --reference_gc_content_file $gc_content_summary \
     --sample_labels_csv $sample_labels_csv \
     --outdir $out_dir --at_anchor $at_anchor --gc_anchor $gc_anchor \
     --failure_fold_change $failure_fold_change --warning_fold_change $warning_fold_change \
     --failure_at $failure_at --failure_gc $failure_gc \
+    --y_lim $y_lim \
+    --draw_per_base_coverage $draw_per_base_coverage \
     --draw_trend $draw_trend --show_sample_names $show_sample_names
     """
 }
@@ -245,17 +255,18 @@ workflow {
 
     
     generate_gc_bias(
-		probe_bed,
-		create_soft_links(coverage_files.collect()),
-		gc_content_summary,
-		file(params.sample_labels_csv_path),
-		file(params.out_dir),
+        create_soft_links(coverage_files.collect()),
+        gc_content_summary,
+        file(params.sample_labels_csv_path),
+        ".",
         params.at_anchor,
         params.gc_anchor,
         params.failure_fold_change,
         params.warning_fold_change,
         params.failure_at,
         params.failure_gc,
+        params.y_lim,
+        params.draw_per_base_coverage,
         params.draw_trend,
         params.show_sample_names
    )

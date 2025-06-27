@@ -1,13 +1,9 @@
 #! /usr/bin/env Rscript
 suppressPackageStartupMessages({
   library(argparser)
-  library(GenomicRanges)
-  library(rtracklayer)
+  library(data.table)
   library(tidyverse)
 })
-
-# Suppress summarise info.
-options(dplyr.summarise.inform = FALSE)
 
 # Global variables ----
 BIAS_COLORS <- c(
@@ -19,11 +15,10 @@ BIAS_COLORS <- c(
 )
 
 read_sample_labels_csv <- function(file_path) {
-  sample_labels <- read_csv(
+  sample_labels <- fread(
     file_path,
-    col_names = TRUE,
-    col_types = cols(
-      .default = col_character()
+    colClasses = list(
+      character = names(fread(file_path, nrows = 0))
     )
   )
   if(colnames(sample_labels)[1] != "sample"){
@@ -32,7 +27,7 @@ read_sample_labels_csv <- function(file_path) {
   return(sample_labels)
 }
 
-read_coverage_files_and_create_tibbles <- function(
+read_coverage_files_and_create_data_tables <- function(
     directory_path,
     file_pattern) {
   # List all files in the directory that match the given pattern
@@ -43,134 +38,124 @@ read_coverage_files_and_create_tibbles <- function(
   )
 
   # Initialize an empty list to store tibbles
-  tibbles_list <- list()
+  data_tables_list <- list()
 
   # Read each file, create a tibble, and assign it a name based on the file name
   for (file_path in file_paths) {
     # Extract the base name of the file (without path and extension)
     file_name <- tools::file_path_sans_ext(basename(file_path))
 
-    # Read the file into a tibble
-    tibble_data <- read_tsv(file_path,
-      col_names = c(
+    # Read the file using data.table
+    data_table <- fread(file_path,
+      col.names = c(
         "chromosome",
-        "probe_start_pos",
-        "probe_end_pos",
-        "offset",
+        "region_start_pos", 
+        "region_end_pos",
+        "window_position",
         "depth"
       ),
-      col_types = cols(
-        chromosome = col_character(),
-        probe_start_pos = col_double(),
-        probe_end_pos = col_double(),
-        offset = col_double(),
-        depth = col_double()
+      colClasses = list(
+        character = "chromosome",
+        numeric = c("region_start_pos", "region_end_pos", "window_position", "depth")
       )
-    )
+    )[, region := sprintf("%s:%d-%d", chromosome, region_start_pos, region_end_pos)]
 
-    # Assign the tibble to the list with the name as the key
-    tibbles_list[[file_name]] <- tibble_data
+    # Assign the data table to the list with the name as the key
+    data_tables_list[[file_name]] <- data_table
   }
 
-  return(tibbles_list)
+  return(data_tables_list)
 }
 
 read_gc_content_file <- function(file_path) {
-  # Read the TSV file
-  data <- read_tsv(
+  # Read the TSV file using data.table
+  data <- fread(
     file_path,
-    col_types = cols(
-      region = col_character(),
-      GC = col_double()
+    colClasses = list(
+      character = c("region", "region_name"),
+      numeric = c("window_start", "window_end", "GC")
     )
   )
-
-  # Process the data
-  reformatted_data <- data %>%
-    separate(region, into = c("chromosome", "positions"), sep = "[:]") %>%
-    separate(positions, into = c("start_pos", "end_pos"), sep = "-") %>%
-    mutate(
-      start_pos = as.integer(start_pos),
-      end_pos = as.integer(end_pos)
-    )
-
-  return(reformatted_data)
-}
-
-read_bed_file <- function(file_path) {
-  # Supply your BED file path with --bed_file_path
-  bed_data <- suppressMessages(
-    read_tsv(file_path, col_names = FALSE)
-  )
-
-  # Check the number of columns and process accordingly
-  if (ncol(bed_data) >= 4) {
-    colnames(bed_data)[4] <- "probe_name"
-  } else {
-    bed_data$probe_name <- seq(1000, 1000 + nrow(bed_data) - 1)
-  }
-
-  # Ensuring the first three columns are named correctly
-  colnames(bed_data)[1:3] <- c("chromosome", "probe_start_pos", "probe_end_pos")
-
-  return(bed_data)
-}
-
-add_offset_to_start_position_and_drop_columns <- function(tibble) {
-  tibble %>%
-    # Add offset to start position. Subtract one as offset starts with 1.
-    mutate(position = probe_start_pos + offset - 1) %>%
-    # Select the required columns
-    select(sample, probe_name, chromosome, position, depth)
+  return(data)
 }
 
 calculate_gc_bias_regression <- function(bin_gc_summary) {
-  gc_bias_regression <- bin_gc_summary %>%
-    group_by(sample) %>%
-    arrange(sample, gc_percentile) %>%
-    nest() %>%
-    mutate(loess_depth = purrr::map(data, function(x) {
-      stats::loess(normalized_depth ~ gc_percentile, span = 0.75, data = x) %>%
-        stats::predict(gc_percentile = unique(gc_percentile))
-    })) %>%
-    unnest(cols = c(data, loess_depth))
+  # Calculate LOESS regression for each sample
+  gc_bias_regression <- bin_gc_summary[!is.na(normalized_depth), {
+    setorder(.SD, gc_percentile)
+    loess_model <- stats::loess(normalized_depth ~ gc_percentile,
+                               span = 0.75, 
+                               data = as.data.frame(.SD))
+
+    # Create sequence of all possible GC percentiles from min to max.
+    all_gc_percentiles <- seq(min(.SD$gc_percentile), max(.SD$gc_percentile), by = 0.01)
+
+    # Predict for all percentiles.
+    loess_depth <- stats::predict(loess_model,
+                                 newdata = data.frame(gc_percentile = all_gc_percentiles))
+
+    # Create data table with all percentiles and predictions.
+    result <- data.table(
+      gc_percentile = all_gc_percentiles,
+      mean_depth = .SD$mean_depth,
+      loess_depth = loess_depth
+    )
+
+    # Join with original data and clean up mean_depth columns
+    result <- merge(result, .SD, by = "gc_percentile", all.x = TRUE)[
+      , `:=`(mean_depth = mean_depth.x, mean_depth.x = NULL, mean_depth.y = NULL)
+    ]
+  }, by = sample]
+
   return(gc_bias_regression)
 }
 
 get_gc_bias_regression_table <- function(
     raw_bam_readcount_intersected_probes,
     gc_content) {
-  mean_sample_depths <- raw_bam_readcount_intersected_probes %>%
-    select(sample, chromosome, position, depth) %>%
-    distinct() %>%
-    group_by(sample) %>%
-    summarise(mean_depth = mean(depth))
+  # Calculate mean depths.
+  mean_sample_depths <- raw_bam_readcount_intersected_probes[
+    , position := region_start_pos + window_position - 1
+  ][
+    , .(sample, chromosome, position, depth)
+  ][
+    , .SD[1], by = .(sample, chromosome, position)
+  ][
+    , .(mean_depth = mean(depth)), by = sample
+  ]
 
-  # Compute the median depth of each probe (or genomic bin) per sample.
-  gc_summary <- raw_bam_readcount_intersected_probes %>%
-    inner_join(gc_content,
-      multiple = "all"
-    ) %>%
-    group_by(probe_name, GC, sample) %>%
-    summarise(depth_median = median(depth))
+  # Expand GC content windows and join with read depth data.
+  gc_summary <- gc_content[
+    , .(window_position = seq.int(window_start, window_end)),
+    by = .(region, region_name, window_start, window_end, GC)
+  ][
+    raw_bam_readcount_intersected_probes,
+    on = c("region", "window_position"),
+    mult = "all",
+    nomatch = 0,  # Skip rows with no matches
+    allow.cartesian = TRUE  # Allow cartesian join to handle multiple matches
+  ][
+    , .(depth_median = median(depth, na.rm = TRUE)),
+    by = .(region, region_name, window_start, window_end, GC, sample)
+  ]
 
-  # Compute the median depth across probes (or genomic bins) with the same GC content.
-  bin_gc_summary <- gc_summary %>%
-    group_by(sample) %>%
-    mutate(gc_percentile = floor(GC * 100) / 100) %>%
-    group_by(sample, gc_percentile) %>%
-    summarise(depth_median_median = median(depth_median))
+  # Calculate GC percentiles and median depths.
+  bin_gc_summary <- gc_summary[
+    , .(depth_median_median = median(depth_median, na.rm = TRUE)),
+    by = .(sample, gc_percentile = floor(GC * 100) / 100)
+  ]
 
-  # Normalization by mean sample depth.
-  bin_gc_summary <- left_join(
-    bin_gc_summary, mean_sample_depths,
-    by = "sample"
-  ) %>%
-    mutate(normalized_depth = log2(
-      depth_median_median / mean_depth + 1
-    ))
+  # Join with mean depths and calculate normalized depth
+  bin_gc_summary <- bin_gc_summary[
+    mean_sample_depths,
+    on = "sample"
+  ][
+    , normalized_depth := log2(depth_median_median / mean_depth + 1)
+  ]
 
   gc_bias_regression <- calculate_gc_bias_regression(bin_gc_summary)
+  
+  return(gc_bias_regression)
 }
 
 compute_bias_cutoff <- function(fold_change_cutoff, is_upper) {
@@ -227,57 +212,41 @@ classify_gc_bias <- function(
     relative_bias_name,
     at_bias_name,
     gc_bias_name) {
-  relative_bias_symbol <- as.symbol(relative_bias_name)
-  at_bias_symbol <- as.symbol(at_bias_name)
-  gc_bias_symbol <- as.symbol(gc_bias_name)
-  relative_failture_threshold_at_name <- str_glue("{relative_bias_name}_failure_threshold_at")
-  relative_failture_threshold_gc_name <- str_glue("{relative_bias_name}_failure_threshold_gc")
-  relative_warning_threshold_at_name <- str_glue("{relative_bias_name}_warning_threshold_at")
-  relative_warning_threshold_gc_name <- str_glue("{relative_bias_name}_warning_threshold_gc")
-  at_threshold_name <- str_glue("{at_bias_name}_failure_threshold")
-  gc_threshold_name <- str_glue("{gc_bias_name}_failure_threshold")
-  gc_bias_classification <- gc_bias_loess %>%
-    select(
-      c(
-        "sample",
-        all_of(relative_bias_name),
-        all_of(at_bias_name),
-        all_of(gc_bias_name)
-      )
-    ) %>%
-    # Convert bias score into fold change.
-    mutate(
-      across(
-        starts_with("bias_"), ~ 2 ** . - 1,
-        .names = "{.col}_fold_change"
-      )
-    ) %>%
-    mutate(
-      !!relative_failture_threshold_at_name := relative_bias_cutoff_failure_lower,
-      !!relative_failture_threshold_gc_name := relative_bias_cutoff_failure_upper,
-      !!relative_warning_threshold_at_name := relative_bias_cutoff_warning_lower,
-      !!relative_warning_threshold_gc_name := relative_bias_cutoff_warning_upper,
-      !!at_threshold_name := cutoff_failure_at,
-      !!gc_threshold_name := cutoff_failure_gc,
-      bias_type = case_when(
-        !!relative_bias_symbol >= relative_bias_cutoff_failure_upper ~ "GC biased",
-        !!relative_bias_symbol <= relative_bias_cutoff_failure_lower ~ "AT biased",
-        !!gc_bias_symbol >= cutoff_failure_gc ~ "GC biased",
-        !!at_bias_symbol >= cutoff_failure_at ~ "AT biased",
-        !!relative_bias_symbol >= relative_bias_cutoff_warning_upper ~ "GC bias warning",
-        !!relative_bias_symbol <= relative_bias_cutoff_warning_lower ~ "AT bias warning",
-        TRUE ~ "no bias"
-      )
-    ) %>%
-    select(
-      c(
-        sample,
-        starts_with(relative_bias_name),
-        starts_with(at_bias_name),
-        starts_with(gc_bias_name),
-        bias_type
-      )
-    )
+  cols_to_keep <- c("sample", relative_bias_name, at_bias_name, gc_bias_name)
+  gc_bias_classification <- gc_bias_loess[, ..cols_to_keep]
+
+  # Convert bias score into fold change
+  bias_cols <- grep("^bias_", names(gc_bias_classification), value = TRUE)
+  for (col in bias_cols) {
+    gc_bias_classification[, paste0(col, "_fold_change") := 2^get(col) - 1]
+  }
+
+  gc_bias_classification[, paste0(relative_bias_name, "_failure_threshold_at") := relative_bias_cutoff_failure_lower]
+  gc_bias_classification[, paste0(relative_bias_name, "_failure_threshold_gc") := relative_bias_cutoff_failure_upper]
+  gc_bias_classification[, paste0(relative_bias_name, "_warning_threshold_at") := relative_bias_cutoff_warning_lower]
+  gc_bias_classification[, paste0(relative_bias_name, "_warning_threshold_gc") := relative_bias_cutoff_warning_upper]
+  gc_bias_classification[, paste0(at_bias_name, "_failure_threshold") := cutoff_failure_at]
+  gc_bias_classification[, paste0(gc_bias_name, "_failure_threshold") := cutoff_failure_gc]
+
+  gc_bias_classification[, bias_type := fcase(
+    get(relative_bias_name) >= relative_bias_cutoff_failure_upper, "GC biased",
+    get(relative_bias_name) <= relative_bias_cutoff_failure_lower, "AT biased",
+    get(gc_bias_name) >= cutoff_failure_gc, "GC biased",
+    get(at_bias_name) >= cutoff_failure_at, "AT biased",
+    get(relative_bias_name) >= relative_bias_cutoff_warning_upper, "GC bias warning",
+    get(relative_bias_name) <= relative_bias_cutoff_warning_lower, "AT bias warning",
+    default = "no bias"
+  )]
+
+  cols_to_keep <- c(
+    "sample",
+    grep(paste0("^", relative_bias_name), names(gc_bias_classification), value = TRUE),
+    grep(paste0("^", at_bias_name), names(gc_bias_classification), value = TRUE),
+    grep(paste0("^", gc_bias_name), names(gc_bias_classification), value = TRUE),
+    "bias_type"
+  )
+  gc_bias_classification <- gc_bias_classification[, ..cols_to_keep]
+
   return(gc_bias_classification)
 }
 
@@ -288,20 +257,35 @@ calculate_gc_bias_loess <- function(
     relative_bias_name,
     at_bias_name,
     gc_bias_name) {
-  gc_bias_loess <- gc_bias_regression %>%
-    filter(
-      gc_percentile == GC_ANCHOR / 100 | gc_percentile == AT_ANCHOR / 100
-    ) %>%
-    select(sample, gc_percentile, loess_depth) %>%
-    mutate(gc_percentile = gc_percentile * 100) %>%
-    pivot_wider(
-      names_from = gc_percentile, values_from = loess_depth,
-      names_prefix = "bias_"
-    ) %>%
-    # Compute GC-to-AT relative bias score.
-    mutate(!!relative_bias_name :=
-      log2((2 ** get(gc_bias_name) - 1) /
-        (2 ** get(at_bias_name) - 1) + 1))
+  # Filter and select required columns.
+  gc_bias_loess <- gc_bias_regression[
+    # Filter out rows where gc_percentile is not close to GC_ANCHOR or AT_ANCHOR.
+    (abs(gc_percentile - GC_ANCHOR / 100) < 1e-10) | (abs(gc_percentile - AT_ANCHOR / 100) < 1e-10),
+    .(sample, gc_percentile, loess_depth)
+  ]
+
+  # Multiply gc_percentile by 100.
+  gc_bias_loess[, gc_percentile := gc_percentile * 100]
+
+  # Reshape wide using dcast.
+  gc_bias_loess <- dcast(
+    gc_bias_loess,
+    sample ~ gc_percentile,
+    value.var = "loess_depth"
+  )
+
+  # Rename columns with prefix.
+  setnames(
+    gc_bias_loess,
+    old = as.character(c(GC_ANCHOR, AT_ANCHOR)),
+    new = paste0("bias_", c(GC_ANCHOR, AT_ANCHOR))
+  )
+
+  # Compute GC-to-AT relative bias score.
+  gc_bias_loess[, (relative_bias_name) := 
+    log2((2^get(gc_bias_name) - 1) / (2^get(at_bias_name) - 1) + 1)
+  ]
+
   return(gc_bias_loess)
 }
 
@@ -312,42 +296,51 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_
   if (!is.null(sample_labels)) {
     # Second column name is the label
     label <- colnames(sample_labels)[2]
-    gc_bias_regression_w_labels <- gc_bias_regression %>%
-      left_join(
-        sample_labels,
-        by = "sample"
-      )
+    gc_bias_regression_w_labels <- merge(
+      gc_bias_regression_w_labels,
+      sample_labels,
+      by = "sample",
+      all.x = TRUE
+    )
   }
 
-  # Maximum of y-axis.
-  y_max <- ceiling(max(pull(gc_bias_regression, normalized_depth)))
-  # Generate sample GC profiles plot.
-  base_plot <- gc_bias_regression_w_labels %>%
-    left_join(
-      select(
-        gc_bias_classification,
-        "sample", "bias_type"
-      ),
-      by = "sample", multiple = "all"
-    ) %>%
-    ggplot(aes(x = gc_percentile, y = normalized_depth, color = bias_type))
-
-  # Conditionally add the geom_smooth layer
-  if (!is.null(label)) {
-    geom_smooth_layer <- geom_smooth(aes(group = sample, linetype = .data[[label]]),
-                                     method = "loess", formula = y ~ x, se = FALSE, fullrange = TRUE)
+  # Calculate y-axis limits with more aesthetic rounding
+  if (identical(Y_LIM, "auto")) {
+    min_loess_depth <- min(gc_bias_regression$loess_depth)
+    y_min <- ifelse(min_loess_depth < 0,
+                    floor(min_loess_depth * 2) / 2,
+                    0)
+    y_max <- ceiling(max(gc_bias_regression$loess_depth) * 2) / 2
   } else {
-    geom_smooth_layer <- geom_smooth(aes(group = sample),
-                                     method = "loess", formula = y ~ x, se = FALSE, fullrange = TRUE)
+    y_min <- Y_LIM[1]
+    y_max <- Y_LIM[2]
+  }
+  
+  # Generate sample GC profiles plot.
+  base_plot <- merge(
+    gc_bias_regression_w_labels,
+    gc_bias_classification[, .(sample, bias_type)],
+    by = "sample",
+    all.x = TRUE
+  ) %>%
+    ggplot(aes(x = gc_percentile, y = loess_depth, color = bias_type))
+
+  # Conditionally add the geom_line layer
+  if (!is.null(label)) {
+    geom_line_layer <- geom_line(aes(group = sample, linetype = .data[[label]]))
+  } else {
+    geom_line_layer <- geom_line(aes(group = sample))
   }
 
   # Add the rest of the layers
   p <- base_plot +
-    geom_smooth_layer +
-    scale_y_continuous("LOESS Depth Per GC Percentile") +
+    geom_line_layer +
+    scale_y_continuous("LOESS Depth Per GC Percentile",
+                      limits = c(y_min, y_max)) +
     ggtitle("GC Content vs. Coverage by Sample") +
-    coord_cartesian(xlim = c(0.0, 1.0), ylim = c(0, y_max)) +
-    scale_x_continuous("GC Content", breaks = seq(0, 1.0, 0.2)) +
+    scale_x_continuous("GC Content", 
+                      limits = c(0, 1),
+                      breaks = seq(0, 1.0, 0.2)) +
     scale_color_manual(name = "Bias Type", values = BIAS_COLORS) +
     theme_bw(base_size = 20) +
     theme(legend.position = "right")
@@ -355,8 +348,42 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_
   return(p)
 }
 
+plot_per_base_coverage <- function(all_libraries_raw_coverage) {
+  # Calculate max depth to determine appropriate breaks
+  max_depth <- max(all_libraries_raw_coverage$depth)
+  max_power <- ceiling(log10(max_depth))
+
+  # Generate major breaks (powers of 10)
+  major_breaks <- 10^seq(0, max_power)
+
+  # Generate minor breaks for each decade
+  minor_breaks <- unlist(lapply(seq(0, max_power-1), function(power) {
+    seq(10^power, 10^(power+1), length.out = 10)
+  }))
+
+  # Truncate sample names if they're too long
+  all_libraries_raw_coverage$sample_short <- ifelse(
+    nchar(all_libraries_raw_coverage$sample) > 15,
+    paste0(substr(all_libraries_raw_coverage$sample, 1, 12), "..."),
+    all_libraries_raw_coverage$sample
+  )
+
+  p <- ggplot(all_libraries_raw_coverage, aes(sample_short, depth)) +
+    geom_boxplot(varwidth = TRUE) +
+    scale_y_continuous("Coverage", 
+                      trans = "log10", 
+                      limits = c(1, NA),
+                      breaks = major_breaks,
+                      minor_breaks = minor_breaks) +
+    scale_x_discrete("Sample") +
+    ggtitle("Per-Base Coverage") +
+    theme_bw(base_size = 20) +
+    theme(legend.position = "none",
+          axis.text.x = element_text(angle = 90, vjust = 0.5))
+  return(p)
+}
+
 main <- function(
-    probe_bed_file,
     bam_coverage_directory,
     reference_gc_content_file,
     sample_labels_csv,
@@ -372,20 +399,8 @@ main <- function(
   gc_bias_name <- str_glue("bias_{GC_ANCHOR}")
 
   ## ------ Read files.
-  ## Read probes.
-  probes <- read_bed_file(probe_bed_file)
-
   ## Read GC content
   reference_gc_content <- read_gc_content_file(reference_gc_content_file)
-  ## Add probe name/identifier to reference_gc_content.
-  reference_gc_content <- reference_gc_content %>% left_join(
-    probes,
-    by = c(
-      "chromosome" = "chromosome",
-      "start_pos" = "probe_start_pos",
-      "end_pos" = "probe_end_pos"
-    )
-  )
 
   ## Read sample types if provided
   sample_labels <- if (sample_labels_csv != "NO_FILE") {
@@ -395,26 +410,28 @@ main <- function(
   }
 
   ## Read coverage data for each sample.
-  raw_coverage_tibbles <- read_coverage_files_and_create_tibbles(
+  raw_coverage_data_tables <- read_coverage_files_and_create_data_tables(
     bam_coverage_directory,
     "_intersected_coverage\\.bed$"
   )
-  all_libraries_raw_coverage <- raw_coverage_tibbles %>%
-    imap(~ mutate(.x, sample = .y)) %>%
-    bind_rows() %>%
-    mutate(sample = sub("_intersected_coverage$", "", sample))
-  ## Add probe name/identifier to reference_gc_content.
-  all_libraries_raw_coverage <- all_libraries_raw_coverage %>% left_join(
-    probes,
-    by = c(
-      "chromosome" = "chromosome",
-      "probe_start_pos" = "probe_start_pos",
-      "probe_end_pos" = "probe_end_pos"
+  all_libraries_raw_coverage <- rbindlist(
+    Map(function(dt, name) {
+      dt[, sample := sub("_intersected_coverage$", "", name)]
+      dt
+    }, raw_coverage_data_tables, names(raw_coverage_data_tables))
+  )
+
+  if (DRAW_PER_BASE_COVERAGE) {
+    p_per_base_coverage <- plot_per_base_coverage(all_libraries_raw_coverage)
+    n_samples <- length(unique(all_libraries_raw_coverage$sample))
+    ggsave(
+      file.path(outdir, "per_base_coverage.png"),
+      plot = p_per_base_coverage,
+      height = 7.5,
+      width = 0.5 * n_samples + 3,
+      units = "in"
     )
-  )
-  all_libraries_raw_coverage <- add_offset_to_start_position_and_drop_columns(
-    all_libraries_raw_coverage
-  )
+  }
 
   gc_bias_regression_table <- get_gc_bias_regression_table(
     all_libraries_raw_coverage,
@@ -504,16 +521,15 @@ find_here <- function() {
 parse_args_function <- function() {
   parser <- arg_parser(
     paste(
-      "R script for calculating and visualizing GC biases. Required inputs are",
-      "bam files in a directory, probes BED file and reference sequence FASTA.",
-      "Usage = generate_gc_biases.R --probe_bed_file <probe_bed_file>",
-      "--bam_coverage_directory <bam_coverage_directory>",
+      "R script for calculating and visualizing GC biases. Required inputs are bam files",
+      "in a directory and a GC content file calculated by bin/calculate_gc_content.sh.",
+      "Optional inputs are a sample labels csv file and an output directory.",
+      "Usage = panelGC_main.R --bam_coverage_directory <bam_coverage_directory>",
       "--reference_gc_content_file <reference_gc_content_file>",
-      "--sample_labels_csv <sample_labels_csv>",
+      "--sample_labels_csv <sample_labels_csv> (optional)",
       "--outdir <outdir>"
     )
   )
-  parser <- add_argument(parser, "--probe_bed_file", help = "Probes bed file")
   parser <- add_argument(
     parser,
     "--bam_coverage_directory",
@@ -568,6 +584,17 @@ parse_args_function <- function() {
   )
   parser <- add_argument(
     parser,
+    "--y_lim",
+    help = "y-axis minimum and maximum.",
+    default = "auto"
+  )
+  parser <- add_argument(
+    parser,
+    "--draw_per_base_coverage",
+    help = "Draw per-base coverage plot."
+  )
+  parser <- add_argument(
+    parser,
     "--draw_trend",
     help = "Generate trend visualization."
   )
@@ -582,7 +609,6 @@ parse_args_function <- function() {
 
 if (!interactive()) {
   args <- parse_args_function()
-  probe_bed_file <- pluck(args, "probe_bed_file")
   bam_coverage_directory <- pluck(args, "bam_coverage_directory")
   reference_gc_content_file <- pluck(args, "reference_gc_content_file")
   sample_labels_csv <- pluck(args, "sample_labels_csv")
@@ -593,11 +619,18 @@ if (!interactive()) {
   WARNING_FOLD_CHANGE <<- as.numeric(pluck(args, "warning_fold_change"))
   FAILURE_AT <<- as.numeric(pluck(args, "failure_at"))
   FAILURE_GC <<- as.numeric(pluck(args, "failure_gc"))
+  Y_LIM <<- pluck(args, "y_lim")
+  if (Y_LIM != "auto") {
+    Y_LIM <<- as.numeric(str_split(Y_LIM, ",")[[1]])
+    if (length(Y_LIM) != 2 || !all(is.numeric(Y_LIM)) || Y_LIM[1] >= Y_LIM[2]) {
+      stop("y_lim must be a comma-separated string of two numbers where the first number is less than the second.")
+    }
+  }
   DRAW_TREND <<- as.logical(pluck(args, "draw_trend"))
   SHOW_SAMPLES <<- as.logical(pluck(args, "show_sample_names"))
+  DRAW_PER_BASE_COVERAGE <<- as.logical(pluck(args, "draw_per_base_coverage"))
   BIN_FOLDER <<- find_here()
   main(
-    probe_bed_file,
     bam_coverage_directory,
     reference_gc_content_file,
     sample_labels_csv,

@@ -11,8 +11,8 @@ amd64, arm64v8, ppc64le, s390x ([more info](https://github.com/docker-library/of
 - Nextflow (tested with 24.10.3)
 
 Containerized dependencies (no installation required):
-bedtools 2.30.0
-r-base 4.3.2 argparser 0.7.1 BiocManager 1.30.22 GenomicRanges 1.54.1 rtracklayer 1.62.0 tidyverse 2.0.0
+bedtools 2.30.0 HTSlib 1.22 SAMtools 1.22
+r-base 4.3.2 argparser 0.7.1 tidyverse 2.0.0 data.table 1.14.8
 
 ## Installation
 - Install Apptainer: \
@@ -44,15 +44,27 @@ nextflow run /path/to/panelGC/panelGC.nf \
   - sample: Sample names matching the BAM file names.
   - \<label>: A column for your labels with "True" or "False" values.
 - --out_dir: Path to the output directory.
+- --window_size: Window size (bp) for calculating GC content. Regions in the BED file smaller than window_size will be skipped. Use 0 to calculate GC content for each entire region in the BED file. Default: 100
 - --at_anchor: GC percentile anchor for detecting AT bias. Should be > 0 and < 50. Default: 25
 - --gc_anchor: GC percentile anchor for detecting GC bias. Should be > 50 and < 100. Default: 75
 - --failure_fold_change: Relative coverage fold change failure threshold. Should be > 0. Default: 2
 - --warning_fold_change: Relative coverage fold change warning threshold. Should be > 0 and less than failure_fold_change. Default: 1.5
 - --failure_at: Coverage fold change failure threshold at the AT anchor. Should be > 0. Default: 1.5
 - --failure_gc: Coverage fold change failure threshold at the GC anchor. Should be > 0. Default: 1.5
+- --y_lim: y-axis minimum and maximum for the GC bias profile plot. Comma-separated string of two numbers where the first number is less than the second e.g. "0,1". Default: "auto", which means the y-axis will be automatically determined by the data.
 - --draw_trend: Boolean parameter to determine whether to generate trend visualization. Default: false
 - --show_sample_names: Boolean parameter to determine whether to sample names in trend visualization. Default: true
+- --draw_per_base_coverage: Boolean parameter to determine whether to draw per-base coverage plot. Default: true
+- --publish_per_base_coverage: Boolean parameter to determine whether to publish the per-base coverage file for each sample in the output directory. Default: true
+- --publish_gc_content_summary: Boolean parameter to determine whether to publish the GC content summary file in the output directory. Default: true
 - --publish_bam_files: Boolean parameter to determine whether to publish converted BAM files in the output directory when input files are in CRAM format. Default: false
+
+### Retry mechanism
+The workflow uses a retry mechanism to handle transient failures. By default, processes will retry up to 10 times with an exponential backoff strategy. This helps ensure robust execution in environments with unstable network connections or resource constraints, particularly when processing CRAM files.
+
+To modify retry behavior, you can adjust the following parameters in `nextflow.config`:
+- `maxRetries`: Maximum number of retry attempts (default: 10)
+- `errorStrategy`: Strategy for handling errors (default: 'retry')
 
 ## Memory Requirements
 The bedtools_coverage process in panelGC is configured to use a maximum of 4 forks (panelGC.nf, line 130), as it typically requires around ~15GB per fork. It's important to note that users with less than 100GB of memory may need to decrease the number of forks, while those with more than 100GB can consider increasing it for potentially better performance.

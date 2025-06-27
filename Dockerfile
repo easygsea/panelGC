@@ -5,7 +5,7 @@ FROM rocker/r-ver:4.3
 LABEL base_image="rocker/r-ver:4.3"
 LABEL version="1"
 LABEL software="panelGC"
-LABEL software.version="1.1.0"
+LABEL software.version="1.2.0"
 LABEL about.summary="An open source tool for quantifying and monitoring GC bias in sequencing panels"
 LABEL about.home="https://github.com/easygsea/panelGC"
 LABEL about.license="SPDX:GPL-3.0"
@@ -40,5 +40,4 @@ RUN curl -sL "https://github.com/samtools/htslib/releases/download/${HTSLIB_VERS
     rm -rf htslib-* samtools-*
 
 # R packages
-RUN install2.r --error BiocManager argparser tidyverse
-RUN Rscript -e 'requireNamespace("BiocManager"); BiocManager::install("GenomicRanges"); BiocManager::install("rtracklayer")'
+RUN install2.r --error argparser tidyverse data.table
