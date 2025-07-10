@@ -29,36 +29,69 @@ read_sample_labels_csv <- function(file_path) {
 
 read_coverage_files_and_create_data_tables <- function(
     directory_path,
-    file_pattern) {
+    file_suffix_pattern,
+    coverage_format) {
   # List all files in the directory that match the given pattern
   file_paths <- list.files(
     path = directory_path,
-    pattern = file_pattern,
+    pattern = sprintf("%s$", file_suffix_pattern),
     full.names = TRUE
   )
 
-  # Initialize an empty list to store tibbles
+  # Initialize an empty list to store data.tables
   data_tables_list <- list()
 
-  # Read each file, create a tibble, and assign it a name based on the file name
+  # Read each file, create a data.table, and assign it a name based on the file name
   for (file_path in file_paths) {
     # Extract the base name of the file (without path and extension)
     file_name <- tools::file_path_sans_ext(basename(file_path))
 
-    # Read the file using data.table
-    data_table <- fread(file_path,
-      col.names = c(
-        "chromosome",
-        "region_start_pos", 
-        "region_end_pos",
-        "window_position",
-        "depth"
-      ),
-      colClasses = list(
-        character = "chromosome",
-        numeric = c("region_start_pos", "region_end_pos", "window_position", "depth")
+    # Read the file using data.table, tailored to coverage_format
+    if (tolower(coverage_format) == "bedtools") {
+      # bedtools coverage -d output: chrom, start, end, position, depth
+      data_table <- fread(file_path,
+        col.names = c(
+          "chromosome",
+          "region_start_pos", 
+          "region_end_pos",
+          "window_position",
+          "depth"
+        ),
+        colClasses = list(
+          character = "chromosome",
+          numeric = c("region_start_pos", "region_end_pos", "window_position", "depth")
+        )
+      )[, region := sprintf("%s:%d-%d", chromosome, region_start_pos, region_end_pos)]
+    } else if (tolower(coverage_format) == "samtools") {
+      # samtools depth output: chrom, position, depth
+      data_table <- fread(file_path,
+        col.names = c(
+          "chromosome",
+          "position",
+          "depth"
+        ),
+        colClasses = list(
+          character = "chromosome",
+          numeric = c("position", "depth")
+        )
       )
-    )[, region := sprintf("%s:%d-%d", chromosome, region_start_pos, region_end_pos)]
+    } else if (tolower(coverage_format) == "dragen") {
+      # Example DRAGEN output: chrom, start, end, depth
+      data_table <- fread(file_path,
+        col.names = c(
+          "chromosome",
+          "region_start_pos", 
+          "region_end_pos",
+          "depth"
+        )
+      )[
+        , .(chromosome = chromosome, position = (region_start_pos + 1):region_end_pos, depth = rep(depth, region_end_pos - region_start_pos))
+      ][
+        , .(chromosome, position, depth)
+      ]
+    } else {
+      stop(sprintf("Unsupported coverage_format: %s", coverage_format))
+    }
 
     # Assign the data table to the list with the name as the key
     data_tables_list[[file_name]] <- data_table
@@ -113,24 +146,45 @@ calculate_gc_bias_regression <- function(bin_gc_summary) {
 get_gc_bias_regression_table <- function(
     raw_bam_readcount_intersected_probes,
     gc_content) {
-  # Calculate mean depths.
-  mean_sample_depths <- raw_bam_readcount_intersected_probes[
-    , position := region_start_pos + window_position - 1
-  ][
-    , .(sample, chromosome, position, depth)
-  ][
-    , .SD[1], by = .(sample, chromosome, position)
-  ][
-    , .(mean_depth = mean(depth)), by = sample
-  ]
+  if (tolower(COVERAGE_FORMAT) %in% c("samtools", "dragen")) {
+    # For samtools/dragen coverage output: join by chromosome/position to region/window in GC content
+    mean_sample_depths <- raw_bam_readcount_intersected_probes[
+      , .(mean_depth = mean(depth)), by = sample
+    ]
 
-  # Expand GC content windows and join with read depth data.
-  gc_summary <- gc_content[
-    , .(window_position = seq.int(window_start, window_end)),
-    by = .(region, region_name, window_start, window_end, GC)
-  ][
+    # Expand GC content windows to positions, include chromosome for join
+    gc_content[, region_start_pos := as.integer(sub("^[^:]+:(\\d+)-\\d+$", "\\1", region))]
+    gc_content_expanded <- gc_content[
+      , .(position = seq.int(window_start, window_end) + region_start_pos + 1,
+          chromosome = sub("^([^:]+):.*$", "\\1", region)),
+      by = .(region, region_name, window_start, window_end, GC)
+    ]
+
+    join_on <- c("chromosome", "position")
+  } else {
+    # For bedtools coverage output: join by region and window_position:
+    mean_sample_depths <- raw_bam_readcount_intersected_probes[
+      , position := region_start_pos + window_position - 1
+    ][
+      , .(sample, chromosome, position, depth)
+    ][
+      , .SD[1], by = .(sample, chromosome, position)
+    ][
+      , .(mean_depth = mean(depth)), by = sample
+    ]
+
+    gc_content_expanded <- gc_content[
+      , .(window_position = seq.int(window_start, window_end)),
+      by = .(region, region_name, window_start, window_end, GC)
+    ]
+
+    join_on <- c("region", "window_position")
+  }
+
+  # Common join and summarization code
+  gc_summary <- gc_content_expanded[
     raw_bam_readcount_intersected_probes,
-    on = c("region", "window_position"),
+    on = join_on,
     mult = "all",
     nomatch = 0,  # Skip rows with no matches
     allow.cartesian = TRUE  # Allow cartesian join to handle multiple matches
@@ -412,11 +466,12 @@ main <- function(
   ## Read coverage data for each sample.
   raw_coverage_data_tables <- read_coverage_files_and_create_data_tables(
     bam_coverage_directory,
-    "_intersected_coverage\\.bed$"
+    COVERAGE_FILE_SUFFIX,
+    COVERAGE_FORMAT
   )
   all_libraries_raw_coverage <- rbindlist(
     Map(function(dt, name) {
-      dt[, sample := sub("_intersected_coverage$", "", name)]
+      dt[, sample := sub(sub("^(.*)\\.[^.]+$", "\\1", COVERAGE_FILE_SUFFIX), "", name)]
       dt
     }, raw_coverage_data_tables, names(raw_coverage_data_tables))
   )
@@ -550,37 +605,44 @@ parse_args_function <- function() {
   parser <- add_argument(
     parser,
     "--outdir",
-    help = "Output directory."
+    help = "Output directory.",
+    default = "panelgc_results"
   )
   parser <- add_argument(
     parser,
     "--at_anchor",
-    help = "GC percentile anchor for detecting AT bias."
+    help = "GC percentile anchor for detecting AT bias.",
+    default = 25
   )
   parser <- add_argument(
     parser,
     "--gc_anchor",
-    help = "GC percentile anchor for detecting GC bias."
+    help = "GC percentile anchor for detecting GC bias.",
+    default = 75
   )
   parser <- add_argument(
     parser,
     "--failure_fold_change",
-    help = "Relative coverage fold change failure threshold."
+    help = "Relative coverage fold change failure threshold.",
+    default = 2
   )
   parser <- add_argument(
     parser,
     "--warning_fold_change",
-    help = "Relative coverage fold change warning threshold."
+    help = "Relative coverage fold change warning threshold.",
+    default = 1.5
   )
   parser <- add_argument(
     parser,
     "--failure_at",
-    help = "Coverage fold change failure threshold at the AT anchor."
+    help = "Coverage fold change failure threshold at the AT anchor.",
+    default = 1.5
   )
   parser <- add_argument(
     parser,
     "--failure_gc",
-    help = "Coverage fold change failure threshold at the GC anchor."
+    help = "Coverage fold change failure threshold at the GC anchor.",
+    default = 1.5
   )
   parser <- add_argument(
     parser,
@@ -591,17 +653,32 @@ parse_args_function <- function() {
   parser <- add_argument(
     parser,
     "--draw_per_base_coverage",
-    help = "Draw per-base coverage plot."
+    help = "Draw per-base coverage plot.",
+    default = TRUE
   )
   parser <- add_argument(
     parser,
     "--draw_trend",
-    help = "Generate trend visualization."
+    help = "Generate trend visualization.",
+    default = FALSE
   )
   parser <- add_argument(
     parser,
     "--show_sample_names",
-    help = "Show sample names in trend visualization"
+    help = "Show sample names in trend visualization",
+    default = TRUE
+  )
+  parser <- add_argument(
+    parser,
+    "--coverage_format",
+    help = "Format of the coverage file: 'bedtools', 'samtools', or 'dragen'.",
+    default = "bedtools"
+  )
+  parser <- add_argument(
+    parser,
+    "--coverage_file_suffix",
+    help = "Suffix (regular expression) used to match coverage files in the input directory.",
+    default = "_intersected_coverage\\.bed"
   )
   argv <- parse_args(parser)
   return(argv)
@@ -629,6 +706,8 @@ if (!interactive()) {
   DRAW_TREND <<- as.logical(pluck(args, "draw_trend"))
   SHOW_SAMPLES <<- as.logical(pluck(args, "show_sample_names"))
   DRAW_PER_BASE_COVERAGE <<- as.logical(pluck(args, "draw_per_base_coverage"))
+  COVERAGE_FORMAT <<- pluck(args, "coverage_format")
+  COVERAGE_FILE_SUFFIX <<- pluck(args, "coverage_file_suffix")
   BIN_FOLDER <<- find_here()
   main(
     bam_coverage_directory,
