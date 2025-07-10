@@ -545,7 +545,7 @@ parse_args_function <- function() {
     parser,
     "--sample_labels_csv",
     help = "Sample labels csv for grouping by line type in 'gc_bias_profile.png', optional",
-    default = "NA"
+    default = "NO_FILE"
   )
   parser <- add_argument(
     parser,
