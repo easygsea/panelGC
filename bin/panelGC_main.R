@@ -471,7 +471,7 @@ main <- function(
   )
   all_libraries_raw_coverage <- rbindlist(
     Map(function(dt, name) {
-      dt[, sample := sub(sub("^(.*)\\.[^.]+$", "\\1", COVERAGE_FILE_SUFFIX), "", name)]
+      dt[, sample := sub(sub("^(.*)(?:\\\\+)\\.[^.]+$", "\\1", COVERAGE_FILE_SUFFIX), "", name)]
       dt
     }, raw_coverage_data_tables, names(raw_coverage_data_tables))
   )
