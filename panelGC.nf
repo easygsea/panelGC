@@ -106,7 +106,6 @@ bam_channel = Channel
                 }
 
 process convert_cram_to_bam {
-    maxForks 4
     publishDir "${params.out_dir}/bam_files", mode: 'copy', enabled: params.publish_bam_files
     /*
      * Run samtools view to convert CRAM to BAM
@@ -128,7 +127,6 @@ process convert_cram_to_bam {
 }
 
 process bedtools_coverage {
-    maxForks 4
     /*
      * Run bedtools coverage
      */
@@ -148,9 +146,8 @@ process bedtools_coverage {
 }
 
 process samtools_coverage {
-    maxForks 4
     /*
-     * Run bedtools coverage
+     * Run samtools depth
      */
     publishDir "${params.out_dir}/coverage", mode: 'copy', enabled: params.publish_per_base_coverage
 
