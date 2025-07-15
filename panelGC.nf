@@ -147,6 +147,28 @@ process bedtools_coverage {
     """
 }
 
+process samtools_coverage {
+    maxForks 4
+    /*
+     * Run bedtools coverage
+     */
+    publishDir "${params.out_dir}/coverage", mode: 'copy', enabled: params.publish_per_base_coverage
+
+    input:
+    tuple val(library_id), path(converted_bam)
+    val minimum_baseq
+    val minimum_mapq
+
+    output:
+    path("${library_id}_intersected_coverage.bed")
+
+    script:
+    """
+    cut -f1-3 $probe_bed >> only_required_columns.bed
+    samtools depth --min-BQ $minimum_baseq --min-MQ $minimum_mapq -a -b only_required_columns.bed $converted_bam > ${library_id}_intersected_coverage.bed
+    """
+}
+
 process bedtools_getfasta {
     /*
      * Run bedtools getfasta
@@ -226,6 +248,7 @@ process generate_gc_bias {
     val draw_per_base_coverage
     val draw_trend
     val show_sample_names
+    val coverage_tool
 
     output:
     path "*", emit: panelGC_results
@@ -240,20 +263,28 @@ process generate_gc_bias {
     --failure_at $failure_at --failure_gc $failure_gc \
     --y_lim $y_lim \
     --draw_per_base_coverage $draw_per_base_coverage \
-    --draw_trend $draw_trend --show_sample_names $show_sample_names
+    --draw_trend $draw_trend --show_sample_names $show_sample_names \
+    --coverage_format $coverage_tool
     """
 }
 
 workflow {
-    coverage_files = bam_channel
-    			| convert_cram_to_bam
-    			| bedtools_coverage
-    
-   
-    gc_content_summary = bedtools_getfasta(probe_bed, reference_fasta) 
-			| calculate_gc_content
+    converted_bams = convert_cram_to_bam(bam_channel)
 
-    
+    if (params.coverage_tool == "bedtools") {
+        coverage_files = bedtools_coverage(converted_bams)
+    } else if (params.coverage_tool == "samtools") {
+        coverage_files = samtools_coverage(converted_bams, params.minimum_baseq, params.minimum_mapq)
+    } else {
+        error("""
+        Unrecognized value for --coverage_tool: '${params.coverage_tool}'.
+        Please specify either 'bedtools' or 'samtools' for the --coverage_tool parameter.
+        """)
+    }    
+
+    gc_content_summary = bedtools_getfasta(probe_bed, reference_fasta) 
+		| calculate_gc_content
+
     generate_gc_bias(
         create_soft_links(coverage_files.collect()),
         gc_content_summary,
@@ -268,7 +299,8 @@ workflow {
         params.y_lim,
         params.draw_per_base_coverage,
         params.draw_trend,
-        params.show_sample_names
+        params.show_sample_names,
+        params.coverage_tool
    )
 }
 

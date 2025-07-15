@@ -40,6 +40,9 @@ nextflow run /path/to/panelGC/panelGC.nf \
 - --bam_directory_path: Path to the directory containing alignment BAM files. Indices are preferred but not mandatory. Symlinks to the BAM and index files are valid.
 - --bed_file_path: Path to the genomic bins (or probes) BED file.
 - --fasta_file_path: Path to the genome FASTA file.
+- --coverage_tool: Tool to compute coverage. Options: bedtools, samtools. Default: bedtools
+- --minimum_baseq: (samtools only) Minimum base quality to consider for coverage calculation. Default: 0
+- --minimum_mapq: (samtools only) Minimum mapping quality to consider for coverage calculation. Default: 1
 - --sample_labels_csv_path: Path to a CSV file containing sample labels, optional. Supplying this file allows you to differentiate line types for different labels in the `gc_bias_profile.png` output. The file should have two columns:
   - sample: Sample names matching the BAM file names.
   - \<label>: A column for your labels with "True" or "False" values.
