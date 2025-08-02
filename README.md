@@ -47,8 +47,8 @@ Otherwise, to manually pull the panelGC Apptainer image, run:
 # Pull the latest version:
 apptainer pull docker://quay.io/easygsea/panelgc:latest
 
-# Or pull a specific version, e.g. v1.2.0:
-apptainer pull docker://quay.io/easygsea/panelgc:v1.2.0
+# Or pull a specific version, e.g. v1.3.0:
+apptainer pull docker://quay.io/easygsea/panelgc:v1.3.0
 ```
 #### Run executables:
 Calculate GC content from a FASTA and BED file - you only need to do this once for each unique combination of genome and regions of interest:
