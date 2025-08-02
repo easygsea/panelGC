@@ -76,6 +76,7 @@ apptainer exec -B <data_folder> <panelGC_image> \
   --coverage_format dragen \
   --bed_file <bed_file>
 ```
+You can also run the panelGC executables (such as `/opt/panelGC/bin/calculate_gc_content.sh` and `/opt/panelGC/bin/panelGC_main.R`) directly within your own Nextflow processes by specifying the panelGC container as the container for those processes.
 
 ### Parameters
 **Input/Output Files**
