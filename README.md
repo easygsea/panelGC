@@ -1,7 +1,7 @@
 # panelGC
 
 ## Introduction
-panelGC effectively quantifies and monitors GC bias in hybridization capture sequencing, identifying and flagging potential sample and/or procedural anomalies.
+panelGC effectively quantifies and monitors GC bias in next generation sequencing, identifying and flagging potential sample and/or procedural anomalies.
 
 ## Supported Architectures
 amd64, arm64v8, ppc64le, s390x ([more info](https://github.com/docker-library/official-images#architectures-other-than-amd64))
@@ -12,7 +12,7 @@ amd64, arm64v8, ppc64le, s390x ([more info](https://github.com/docker-library/of
 
 Containerized dependencies (no installation required):
 bedtools 2.30.0 HTSlib 1.22 SAMtools 1.22
-r-base 4.3.2 argparser 0.7.1 tidyverse 2.0.0 data.table 1.14.8
+r-base 4.3.2 argparser 0.7.2 tidyverse 2.0.0 data.table 1.15.4
 
 ## Installation
 - Install Apptainer: \
@@ -36,28 +36,108 @@ nextflow run /path/to/panelGC/panelGC.nf \
 
 **Note:** `nextflow` provides additional options to help optimize the deployment of panelGC for your specific use. For more details, please refer to the official guides: [nextflow CLI reference](https://www.nextflow.io/docs/latest/reference/cli.html#options).
 
+### *New Feature* Run executables with Apptainer
+
+You can now use Apptainer to pull the panelGC container image and run its bin/ executables directly, without the need for Nextflow, provided you have already generated per-base coverage files using samtools, bedtools, DRAGEN, or comparable tools.
+
+#### Pull panelGC container:
+If you've run the panelGC workflow as above, the Apptainer image will already be pulled to your system (e.g. your Nextflow work directory). You can proceed directly to the next step using the known path to the image.
+Otherwise, to manually pull the panelGC Apptainer image, run:
+```bash
+# Pull the latest version:
+apptainer pull docker://quay.io/easygsea/panelgc:latest
+
+# Or pull a specific version, e.g. v1.2.0:
+apptainer pull docker://quay.io/easygsea/panelgc:v1.2.0
+```
+#### Run executables:
+Calculate GC content from a FASTA and BED file - you only need to do this once for each unique combination of genome and regions of interest:
+```bash
+# Step 1: Extract sequences from reference FASTA using BED coordinates
+apptainer exec -B <data_folder> <panelGC_image> \
+  bedtools getfasta -tab -fi <reference_fasta> -bed <bed_file> -fo extracted_sequences
+
+# Step 2: Combine probe/target names (from BED) with extracted sequences
+paste <(cut -f4 <bed_file>) extracted_sequences > extracted_sequences.txt
+
+# Step 3: Calculate GC content in windows of 100 bp
+apptainer exec -B <data_folder> <panelGC_image> \
+  /opt/panelGC/bin/calculate_gc_content.sh 100 extracted_sequences.txt extracted_sequences_GC_content.txt
+```
+Compute GC biases and draw visualizations using default parameters:
+```bash
+apptainer exec -B <data_folder> <panelGC_image> \
+  /opt/panelGC/bin/panelGC_main.R \
+  --bam_coverage_directory <per_base_coverage_directory> \
+  --reference_gc_content_file extracted_sequences_GC_content.txt \
+  --outdir <out_dir>
+```
+
 ### Parameters
-- --bam_directory_path: Path to the directory containing alignment BAM files. Indices are preferred but not mandatory. Symlinks to the BAM and index files are valid.
-- --bed_file_path: Path to the genomic bins (or probes) BED file.
-- --fasta_file_path: Path to the genome FASTA file.
-- --sample_labels_csv_path: Path to a CSV file containing sample labels, optional. Supplying this file allows you to differentiate line types for different labels in the `gc_bias_profile.png` output. The file should have two columns:
-  - sample: Sample names matching the BAM file names.
-  - \<label>: A column for your labels with "True" or "False" values.
-- --out_dir: Path to the output directory.
-- --window_size: Window size (bp) for calculating GC content. Regions in the BED file smaller than window_size will be skipped. Use 0 to calculate GC content for each entire region in the BED file. Default: 100
-- --at_anchor: GC percentile anchor for detecting AT bias. Should be > 0 and < 50. Default: 25
-- --gc_anchor: GC percentile anchor for detecting GC bias. Should be > 50 and < 100. Default: 75
-- --failure_fold_change: Relative coverage fold change failure threshold. Should be > 0. Default: 2
-- --warning_fold_change: Relative coverage fold change warning threshold. Should be > 0 and less than failure_fold_change. Default: 1.5
-- --failure_at: Coverage fold change failure threshold at the AT anchor. Should be > 0. Default: 1.5
-- --failure_gc: Coverage fold change failure threshold at the GC anchor. Should be > 0. Default: 1.5
-- --y_lim: y-axis minimum and maximum for the GC bias profile plot. Comma-separated string of two numbers where the first number is less than the second e.g. "0,1". Default: "auto", which means the y-axis will be automatically determined by the data.
-- --draw_trend: Boolean parameter to determine whether to generate trend visualization. Default: false
-- --show_sample_names: Boolean parameter to determine whether to sample names in trend visualization. Default: true
-- --draw_per_base_coverage: Boolean parameter to determine whether to draw per-base coverage plot. Default: true
-- --publish_per_base_coverage: Boolean parameter to determine whether to publish the per-base coverage file for each sample in the output directory. Default: true
-- --publish_gc_content_summary: Boolean parameter to determine whether to publish the GC content summary file in the output directory. Default: true
-- --publish_bam_files: Boolean parameter to determine whether to publish converted BAM files in the output directory when input files are in CRAM format. Default: false
+**Input/Output Files**
+- `--bam_directory_path`:
+  Path to the directory containing alignment BAM files.
+  - Must contain at least one `.bam` or `.cram` file (unless using `dragen` as the coverage tool).
+  - BAM index files (`.bai`) are recommended for faster processing but not strictly required.
+  - Symlinks to BAM and index files are supported.
+  - CRAM files are automatically converted to BAM.
+  - If `--coverage_tool` is set to `dragen`, the directory must contain at least one `.bed` file (DRAGEN generates coverage reports in BED format for QC regions).
+    This option can also be used with any coverage report provided in BED format, not just those generated by DRAGEN.
+- `--bed_file_path`:
+  Path to the genomic bins (or probes) BED file.
+- `--fasta_file_path`:
+  Path to the genome FASTA file.
+- `--out_dir`:
+  Path to the output directory. Default: `panelgc_results`
+- `--sample_labels_csv_path`:
+  (Optional) Path to a CSV file containing sample labels. Supplying this file allows you to differentiate line types for different labels in the `gc_bias_profile.png` output. The file should have two columns:
+    - `sample`: Sample names matching the BAM file names.
+    - `<label>`: A column for your labels with "True" or "False" values.
+
+**Coverage Calculation Options**
+- `--coverage_tool`:
+  Tool to compute coverage. Options: `bedtools`, `samtools`. Default: `bedtools`.  
+  If you select `dragen`, panelGC does not compute coverage but instead uses coverage in BED format generated by DRAGEN or other tools.
+- `--minimum_baseq`:
+  (samtools only) Minimum base quality to consider for coverage calculation. Default: `0`
+- `--minimum_mapq`:
+  (samtools only) Minimum mapping quality to consider for coverage calculation. Default: `1`
+- `--window_size`:
+  Window size (bp) for calculating GC content. Regions in the BED file smaller than `window_size` will be skipped. Use `0` to calculate GC content for each entire region in the BED file. Default: `100`
+
+**GC Bias Detection Parameters**
+- `--at_anchor`:
+  GC percentile anchor for detecting AT bias. Should be > 0 and < 50. Default: `25`
+- `--gc_anchor`:
+  GC percentile anchor for detecting GC bias. Should be > 50 and < 100. Default: `75`
+- `--failure_fold_change`:
+  Relative coverage fold change failure threshold. Should be > 0. Default: `2`
+- `--warning_fold_change`:
+  Relative coverage fold change warning threshold. Should be > 0 and less than `failure_fold_change`. Default: `1.5`
+- `--failure_at`:
+  Coverage fold change failure threshold at the AT anchor. Should be > 0. Default: `1.5`
+- `--failure_gc`:
+  Coverage fold change failure threshold at the GC anchor. Should be > 0. Default: `1.5`
+
+**Plotting and Visualization**
+- `--y_lim`:
+  y-axis minimum and maximum for the GC bias profile plot. Comma-separated string of two numbers where the first number is less than the second, e.g. `"0,1"`. Default: `"auto"` (y-axis will be automatically determined by the data).
+- `--draw_gc_distribution`:
+  Boolean. Draw a GC content distribution histogram below the GC bias profile plot. Default: `true`
+- `--draw_trend`:
+  Boolean. Generate trend visualization. Default: `false`
+- `--show_sample_names`:
+  Boolean. Show sample names in trend visualization. Default: `true`
+- `--draw_per_base_coverage`:
+  Boolean. Draw per-base coverage plot. Default: `true`
+
+**Output Publishing Options**
+- `--publish_per_base_coverage`:
+  Boolean. Publish the per-base coverage file for each sample in the output directory. Default: `true`
+- `--publish_gc_content_summary`:
+  Boolean. Publish the GC content summary file in the output directory. Default: `true`
+- `--publish_bam_files`:
+  Boolean. Publish converted BAM files in the output directory when input files are in CRAM format. Default: `false`
 
 ### Retry mechanism
 The workflow uses a retry mechanism to handle transient failures. By default, processes will retry up to 10 times with an exponential backoff strategy. This helps ensure robust execution in environments with unstable network connections or resource constraints, particularly when processing CRAM files.

@@ -1,12 +1,12 @@
 # Base Image
-FROM rocker/r-ver:4.3
+FROM rocker/r-ver:4.5
 
 # Metadata
-LABEL base_image="rocker/r-ver:4.3"
+LABEL base_image="rocker/r-ver:4.5"
 LABEL version="1"
 LABEL software="panelGC"
-LABEL software.version="1.2.0"
-LABEL about.summary="An open source tool for quantifying and monitoring GC bias in sequencing panels"
+LABEL software.version="1.3.0"
+LABEL about.summary="An open source tool for quantifying and monitoring GC bias in next generation sequencing"
 LABEL about.home="https://github.com/easygsea/panelGC"
 LABEL about.license="SPDX:GPL-3.0"
 LABEL about.tags="GC bias"
@@ -40,4 +40,13 @@ RUN curl -sL "https://github.com/samtools/htslib/releases/download/${HTSLIB_VERS
     rm -rf htslib-* samtools-*
 
 # R packages
-RUN install2.r --error argparser tidyverse data.table
+RUN R -e "install.packages('remotes'); \
+    remotes::install_version('argparser', '0.7.2'); \
+    remotes::install_version('data.table', '1.15.4'); \
+    remotes::install_version('tidyverse', '2.0.0')"
+
+# Download and install panelGC from GitHub Releases
+ENV PANELGC_VERSION=1.3.0
+RUN curl -sL https://github.com/easygsea/panelGC/archive/refs/tags/v${PANELGC_VERSION}.tar.gz | tar xz && \
+    mv panelGC-${PANELGC_VERSION} /opt/panelGC && \
+    chmod -R 755 /opt/panelGC
