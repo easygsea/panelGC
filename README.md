@@ -64,13 +64,17 @@ paste <(cut -f4 <bed_file>) extracted_sequences > extracted_sequences.txt
 apptainer exec -B <data_folder> <panelGC_image> \
   /opt/panelGC/bin/calculate_gc_content.sh 100 extracted_sequences.txt extracted_sequences_GC_content.txt
 ```
-Compute GC biases and draw visualizations using default parameters:
+Compute GC biases and draw visualizations using example customized parameters:
 ```bash
 apptainer exec -B <data_folder> <panelGC_image> \
   /opt/panelGC/bin/panelGC_main.R \
   --bam_coverage_directory <per_base_coverage_directory> \
   --reference_gc_content_file extracted_sequences_GC_content.txt \
-  --outdir <out_dir>
+  --outdir <out_dir> \
+  --at_anchor 30 \
+  --gc_anchor 70 \
+  --coverage_format dragen \
+  --bed_file <bed_file>
 ```
 
 ### Parameters
