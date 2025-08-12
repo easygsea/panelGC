@@ -74,8 +74,11 @@ apptainer exec -B <data_folder> <panelGC_image> \
   --at_anchor 30 \
   --gc_anchor 70 \
   --coverage_format dragen \
+  --coverage_file_suffix "_full_res\\.bed" \
   --bed_file <bed_file>
 ```
+**Note:** When specifying the `--coverage_file_suffix` parameter (or any file suffix pattern), be sure to escape the dot (`.`) as `\\.` (e.g., use `"_full_res\\.bed"` instead of `"_full_res.bed"`). This is essential because the script interprets the suffix as a regular expression, and an unescaped dot will match any character, not just a literal period. Failing to escape the dot may result in incorrect file matching or script errors.
+
 You can also run the panelGC executables (such as `/opt/panelGC/bin/calculate_gc_content.sh` and `/opt/panelGC/bin/panelGC_main.R`) directly within your own Nextflow processes by specifying the panelGC container as the container for those processes.
 
 ### Parameters
