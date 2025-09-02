@@ -500,21 +500,26 @@ plot_per_base_coverage <- function(all_libraries_raw_coverage) {
     seq(10^power, 10^(power+1), length.out = 10)
   }))
 
-  # Truncate sample names if they're too long
-  all_libraries_raw_coverage$sample_short <- ifelse(
-    nchar(all_libraries_raw_coverage$sample) > 15,
-    paste0(substr(all_libraries_raw_coverage$sample, 1, 12), "..."),
-    all_libraries_raw_coverage$sample
-  )
-
-  p <- ggplot(all_libraries_raw_coverage, aes(sample_short, depth)) +
+  # Use full sample names for plotting, but truncate only for axis labels
+  p <- ggplot(all_libraries_raw_coverage, aes(sample, depth)) +
     geom_boxplot(varwidth = TRUE) +
     scale_y_continuous("Coverage", 
                       trans = "log10", 
                       limits = c(1, NA),
                       breaks = major_breaks,
                       minor_breaks = minor_breaks) +
-    scale_x_discrete("Sample") +
+    scale_x_discrete(
+      "Sample",
+      labels = function(x) {
+        max_label_length <- 15
+        trunc_length <- 12
+        ifelse(
+          nchar(x) > max_label_length,
+          paste0(substr(x, 1, trunc_length), "..."),
+          x
+        )
+      }
+    ) +
     ggtitle("Per-Base Coverage") +
     theme_bw(base_size = 20) +
     theme(legend.position = "none",
