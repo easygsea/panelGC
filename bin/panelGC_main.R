@@ -511,13 +511,15 @@ plot_per_base_coverage <- function(all_libraries_raw_coverage) {
     scale_x_discrete(
       "Sample",
       labels = function(x) {
-        max_label_length <- 15
-        trunc_length <- 12
-        ifelse(
-          nchar(x) > max_label_length,
-          paste0(substr(x, 1, trunc_length), "..."),
+        if (MAX_LABEL_LENGTH == 0) {
           x
-        )
+        } else {
+          ifelse(
+            nchar(x) > MAX_LABEL_LENGTH,
+            paste0(substr(x, 1, MAX_LABEL_LENGTH), "..."),
+            x
+          )
+        }
       }
     ) +
     ggtitle("Per-Base Coverage") +
@@ -791,6 +793,15 @@ parse_args_function <- function() {
   )
   parser <- add_argument(
     parser,
+    "--max_label_length",
+    help = paste(
+      "Maximum length of sample names to display on x-axis before truncation.",
+      "Set to 0 to disable truncation."
+    ),
+    default = 15
+  )
+  parser <- add_argument(
+    parser,
     "--draw_trend",
     help = "Generate trend visualization.",
     default = FALSE
@@ -841,6 +852,7 @@ if (!interactive()) {
   DRAW_TREND <<- as.logical(pluck(args, "draw_trend"))
   SHOW_SAMPLES <<- as.logical(pluck(args, "show_sample_names"))
   DRAW_PER_BASE_COVERAGE <<- as.logical(pluck(args, "draw_per_base_coverage"))
+  MAX_LABEL_LENGTH <<- pluck(args, "max_label_length")
   COVERAGE_FORMAT <<- pluck(args, "coverage_format")
   COVERAGE_FILE_SUFFIX <<- pluck(args, "coverage_file_suffix")
   BIN_FOLDER <<- find_here()
