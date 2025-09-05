@@ -272,6 +272,7 @@ process generate_gc_bias {
     val y_lim
     val draw_gc_distribution
     val draw_per_base_coverage
+    val max_label_length
     val draw_trend
     val show_sample_names
     val coverage_tool
@@ -291,6 +292,7 @@ process generate_gc_bias {
     --y_lim $y_lim \
     --draw_gc_distribution $draw_gc_distribution \
     --draw_per_base_coverage $draw_per_base_coverage \
+    --max_label_length $max_label_length \
     --draw_trend $draw_trend --show_sample_names $show_sample_names \
     --coverage_format $coverage_tool \
     ${ coverage_tool == "dragen" ? "--bed_file $bed_file_path" : "" }
@@ -330,6 +332,7 @@ workflow {
         params.y_lim,
         params.draw_gc_distribution,
         params.draw_per_base_coverage,
+        params.max_label_length,
         params.draw_trend,
         params.show_sample_names,
         params.coverage_tool,

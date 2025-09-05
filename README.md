@@ -129,7 +129,9 @@ You can also run the panelGC executables (such as `/opt/panelGC/bin/calculate_gc
 
 **Plotting and Visualization**
 - `--y_lim`:
-  y-axis minimum and maximum for the GC bias profile plot. Comma-separated string of two numbers where the first number is less than the second, e.g. `"0,1"`. Default: `"auto"` (y-axis will be automatically determined by the data).
+  y-axis minimum and maximum for the GC bias profile plot.
+  Comma-separated string of two numbers where the first number is less than the second, e.g. `"0,1"`.
+  Default: `"auto"` (y-axis will be automatically determined by the data).
 - `--draw_gc_distribution`:
   Boolean. Draw a GC content distribution histogram below the GC bias profile plot. Default: `true`
 - `--draw_trend`:
@@ -138,6 +140,10 @@ You can also run the panelGC executables (such as `/opt/panelGC/bin/calculate_gc
   Boolean. Show sample names in trend visualization. Default: `true`
 - `--draw_per_base_coverage`:
   Boolean. Draw per-base coverage plot. Default: `true`
+- `--max_label_length`:
+  Maximum length of sample names to display on the x-axis of per-base plots before truncation.
+  If a sample name exceeds this length, it will be truncated and appended with "...".
+  Set to `0` to disable truncation and display full sample names. Default: `15`
 
 **Output Publishing Options**
 - `--publish_per_base_coverage`:
