@@ -5,7 +5,7 @@ FROM rocker/r-ver:4.5
 LABEL base_image="rocker/r-ver:4.5"
 LABEL version="1"
 LABEL software="panelGC"
-LABEL software.version="1.3.0"
+LABEL software.version="1.3.1"
 LABEL about.summary="An open source tool for quantifying and monitoring GC bias in next generation sequencing"
 LABEL about.home="https://github.com/easygsea/panelGC"
 LABEL about.license="SPDX:GPL-3.0"
@@ -46,7 +46,7 @@ RUN R -e "install.packages('remotes'); \
     remotes::install_version('tidyverse', '2.0.0')"
 
 # Download and install panelGC from GitHub Releases
-ENV PANELGC_VERSION=1.3.0
+ENV PANELGC_VERSION=1.3.1
 RUN curl -sL https://github.com/easygsea/panelGC/archive/refs/tags/v${PANELGC_VERSION}.tar.gz | tar xz && \
     mv panelGC-${PANELGC_VERSION} /opt/panelGC && \
     chmod -R 755 /opt/panelGC
