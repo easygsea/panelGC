@@ -136,6 +136,7 @@ process convert_cram_to_bam {
 }
 
 process bedtools_coverage {
+    maxForks 4
     /*
      * Run bedtools coverage
      */

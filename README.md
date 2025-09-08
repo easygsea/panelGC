@@ -161,7 +161,7 @@ To modify retry behavior, you can adjust the following parameters in `nextflow.c
 - `errorStrategy`: Strategy for handling errors (default: 'retry')
 
 ## Memory Requirements
-The bedtools_coverage process in panelGC is configured to use a maximum of 4 forks (panelGC.nf, line 130), as it typically requires around ~15GB per fork. It's important to note that users with less than 100GB of memory may need to decrease the number of forks, while those with more than 100GB can consider increasing it for potentially better performance.
+The bedtools_coverage process in panelGC is configured to use a maximum of 4 forks (panelGC.nf, line 139), as it typically requires around ~15GB per fork. It's important to note that users with less than 100GB of memory may need to decrease the number of forks, while those with more than 100GB can consider increasing it for potentially better performance.
 
 To modify the fork settings, adjust the maxForks parameter in the bedtools_coverage process according to your system's memory capacity.
 
