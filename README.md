@@ -165,6 +165,8 @@ The bedtools_coverage process in panelGC is configured to use a maximum of 4 for
 
 To modify the fork settings, adjust the maxForks parameter in the bedtools_coverage process according to your system's memory capacity.
 
+If you encounter persistent issues with `bedtools` during coverage calculation, consider switching to `samtools` as an alternative.
+
 ## Output
 Files returned by panelGC:
 1. gc_bias_loess_regression.tsv:
