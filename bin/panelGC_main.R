@@ -384,38 +384,51 @@ plot_gc_profiles <- function(gc_bias_regression, gc_bias_classification, sample_
     y_min <- Y_LIM[1]
     y_max <- Y_LIM[2]
   }
-  
-  # Generate sample GC profiles plot.
-  base_plot <- merge(
+
+  # Generate sample GC profiles plot base
+  plot_data <- merge(
     gc_bias_regression_w_labels,
     gc_bias_classification[, .(sample, bias_type)],
     by = "sample",
     all.x = TRUE
-  ) %>%
-    ggplot(aes(x = gc_percentile, y = loess_depth, color = bias_type))
-  
-  # If gc_content is provided, add a GC distribution histogram baselayer plot.
+  )
+
+  # Initialize variables for secondary axis
+  scale_factor <- NULL
+  max_count <- NULL
+  hist_data <- NULL
+
+  # Pre-compute histogram data if gc_content is provided
   if (!is.null(gc_content)) {
-    # Calculate scaling factor for histogram
-    hist_counts <- hist(gc_content$GC, breaks = seq(0, 1, 0.01), plot = FALSE)$counts
-    max_count <- max(hist_counts)
+    # Calculate histogram
+    hist_result <- hist(gc_content$GC, breaks = seq(0, 1, 0.01), plot = FALSE)
+    max_count <- max(hist_result$counts)
     scale_factor <- (y_max - y_min) * 0.3 / max_count  # Use 30% of curve range
 
+    # Create histogram data frame
+    hist_data <- data.frame(
+      GC = hist_result$mids,
+      count = hist_result$counts,
+      hist_y = hist_result$counts * scale_factor
+    )
+  }
+
+  # Create base plot
+  base_plot <- ggplot(plot_data, aes(x = gc_percentile, y = loess_depth, color = bias_type))
+
+  # Add histogram layers if data is available
+  if (!is.null(hist_data)) {
     p <- base_plot +
-      geom_histogram(
-        data = gc_content,
-        aes(x = GC, y = y_min + after_stat(count) * scale_factor),
-        binwidth = 0.01,
+      geom_ribbon(
+        data = hist_data,
+        aes(x = GC, ymin = y_min, ymax = y_min + hist_y),
         fill = "grey60",
         color = NA,
         alpha = 0.2,
-        boundary = 0,
         inherit.aes = FALSE
       )
   } else {
     p <- base_plot
-    scale_factor <- NULL
-    max_count <- NULL
   }
 
   # Conditionally add the geom_line layer
@@ -816,7 +829,7 @@ parse_args_function <- function() {
     parser,
     "--coverage_format",
     help = "Format of the coverage file: 'bedtools', 'samtools', or 'dragen'.",
-    default = "bedtools"
+    default = "samtools"
   )
   parser <- add_argument(
     parser,
